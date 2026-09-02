@@ -1,9 +1,10 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, WebSocket, Query
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 from app.config import settings
 from app.database import engine
 from app.redis_client import close_redis
+from app.websocket.handler import WebSocketHandler
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -39,6 +40,16 @@ app.include_router(auth.router, prefix="/api/v1/auth", tags=["Authentication"])
 app.include_router(users.router, prefix="/api/v1/users", tags=["Users"])
 app.include_router(documents.router, prefix="/api/v1/documents", tags=["Documents"])
 app.include_router(media.router, prefix="/api/v1/media", tags=["Media"])
+
+# WebSocket endpoint
+@app.websocket("/ws/{document_id}")
+async def websocket_endpoint(
+    websocket: WebSocket,
+    document_id: str,
+    token: str = Query(...)
+):
+    """WebSocket endpoint for real-time collaboration."""
+    await WebSocketHandler.handle_connection(websocket, document_id, token)
 
 @app.get("/")
 async def root():

@@ -25,7 +25,7 @@ class Document(Base):
     media = relationship("Media", back_populates="document", cascade="all, delete-orphan")
     versions = relationship("DocumentVersion", back_populates="document", cascade="all, delete-orphan")
     # comments = relationship("Comment", back_populates="document", cascade="all, delete-orphan")
-    # chat_messages = relationship("ChatMessage", back_populates="document", cascade="all, delete-orphan")
+    chat_messages = relationship("ChatMessage", back_populates="document", cascade="all, delete-orphan")
 
 class Permission(Base):
     __tablename__ = "permissions"
