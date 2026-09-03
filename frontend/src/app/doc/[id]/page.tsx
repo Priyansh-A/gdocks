@@ -1,12 +1,13 @@
 'use client';
-
+import toast from 'react-hot-toast';
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { TiptapEditor } from '@/src/components/Editor/TiptapEditor';
 import { ChatBox } from '@/src/components/Chat/ChatBox';
-import { ActiveUsers } from '@/components/Collaboration/ActiveUsers';
 import { ShareModal } from '@/src/components/Permissions/ShareModal';
-import { MediaUploader } from '@/erc/components/Media/MediaUploader';
+import { MediaUploader } from '@/src/components/Media/MediaUploader';
+import { CommentSection } from '@/src/components/Comments/CommentSection';
+import { VersionHistory } from '@/src/components/Document/VersionHistory';
 import { useAuthStore } from '@/src/store/authStore';
 import { useDocument } from '@/src/hooks/useDocument';
 import { wsClient } from '@/src/lib/websocket-client';
@@ -14,10 +15,11 @@ import {
   Users, 
   Share2, 
   Image, 
-  Menu, 
   Save, 
   Download,
-  ArrowLeft
+  ArrowLeft,
+  Clock,
+  MessageSquare
 } from 'lucide-react';
 
 export default function DocumentPage() {
@@ -28,6 +30,8 @@ export default function DocumentPage() {
   const { document, loading, updateDocument, saveContent } = useDocument(documentId);
   const [showShareModal, setShowShareModal] = useState(false);
   const [showMediaUploader, setShowMediaUploader] = useState(false);
+  const [showComments, setShowComments] = useState(false);
+  const [showVersionHistory, setShowVersionHistory] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
   // Redirect if not authenticated
@@ -55,9 +59,10 @@ export default function DocumentPage() {
     setIsSaving(true);
     try {
       await saveContent();
-      // Show success notification
+      toast.success('Document saved');
     } catch (error) {
       console.error('Failed to save:', error);
+      toast.error('Failed to save document');
     } finally {
       setIsSaving(false);
     }
@@ -67,12 +72,17 @@ export default function DocumentPage() {
     if (document?.content) {
       const blob = new Blob([document.content], { type: 'text/html' });
       const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
+      const a = global.document.createElement('a');
       a.href = url;
       a.download = `${document.title || 'document'}.html`;
       a.click();
       URL.revokeObjectURL(url);
     }
+  };
+
+  const handleRestore = (content: string) => {
+    // Update document content
+    updateDocument({ content });
   };
 
   if (loading) {
@@ -129,6 +139,26 @@ export default function DocumentPage() {
             </button>
 
             <button
+              onClick={() => setShowComments(!showComments)}
+              className={`flex items-center gap-2 px-3 py-2 text-sm rounded-lg transition-colors ${
+                showComments 
+                  ? 'bg-blue-100 text-blue-700' 
+                  : 'bg-gray-50 text-gray-700 hover:bg-gray-100'
+              }`}
+            >
+              <MessageSquare className="w-4 h-4" />
+              Comments
+            </button>
+
+            <button
+              onClick={() => setShowVersionHistory(true)}
+              className="flex items-center gap-2 px-3 py-2 text-sm bg-gray-50 text-gray-700 rounded-lg hover:bg-gray-100 transition-colors"
+            >
+              <Clock className="w-4 h-4" />
+              History
+            </button>
+
+            <button
               onClick={() => setShowShareModal(true)}
               className="flex items-center gap-2 px-3 py-2 text-sm bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100 transition-colors"
             >
@@ -152,6 +182,11 @@ export default function DocumentPage() {
       {/* Chat */}
       <ChatBox documentId={documentId} />
 
+      {/* Comments */}
+      {showComments && (
+        <CommentSection documentId={documentId} />
+      )}
+
       {/* Modals */}
       {showShareModal && (
         <ShareModal
@@ -164,6 +199,14 @@ export default function DocumentPage() {
         <MediaUploader
           documentId={documentId}
           onClose={() => setShowMediaUploader(false)}
+        />
+      )}
+
+      {showVersionHistory && (
+        <VersionHistory
+          documentId={documentId}
+          onClose={() => setShowVersionHistory(false)}
+          onRestore={handleRestore}
         />
       )}
     </div>

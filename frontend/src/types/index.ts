@@ -28,11 +28,16 @@ export interface DocumentWithPermissions extends Document {
 
 export interface Permission {
   id: string;
-  document_id: string;
   user_id: string;
   role: 'owner' | 'editor' | 'viewer' | 'commenter';
-  created_at: string;
+  user?: {
+    id: string;
+    username: string;
+    email: string;
+    avatar_url?: string;
+  };
 }
+
 
 export interface Media {
   id: string;
