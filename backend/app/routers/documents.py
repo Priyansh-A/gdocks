@@ -12,7 +12,7 @@ from app.routers.users import get_current_user
 from app.models.user import User
 from app.core.exceptions import NotFoundError, PermissionDenied
 
-router = APIRouter()
+router = APIRouter(prefix="/documents", tags=["Documents"]) 
 
 @router.post("/", response_model=DocumentResponse)
 async def create_document(

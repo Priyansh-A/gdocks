@@ -8,7 +8,7 @@ from app.schemas.user import UserResponse, UserUpdate
 from app.core.security import decode_token, get_password_hash
 from app.core.exceptions import AuthenticationError, NotFoundError
 
-router = APIRouter(prefix="/users", tags=["users"])
+router = APIRouter(tags=["Users"])
 
 async def get_current_user(
     authorization: Optional[str] = Header(None),
