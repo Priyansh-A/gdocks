@@ -1,7 +1,8 @@
 'use client';
-import toast from 'react-hot-toast';
+import { downloadFile } from '@/src/utils/export';
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
+import { toast } from 'react-hot-toast';
 import { TiptapEditor } from '@/src/components/Editor/TiptapEditor';
 import { ChatBox } from '@/src/components/Chat/ChatBox';
 import { ShareModal } from '@/src/components/Permissions/ShareModal';
@@ -12,7 +13,6 @@ import { useAuthStore } from '@/src/store/authStore';
 import { useDocument } from '@/src/hooks/useDocument';
 import { wsClient } from '@/src/lib/websocket-client';
 import { 
-  Users, 
   Share2, 
   Image, 
   Save, 
@@ -27,12 +27,18 @@ export default function DocumentPage() {
   const router = useRouter();
   const documentId = params.id as string;
   const { isAuthenticated } = useAuthStore();
-  const { document, loading, updateDocument, saveContent } = useDocument(documentId);
+  const { document, loading, updateDocument, saveContent, content, setContent } = useDocument(documentId);
   const [showShareModal, setShowShareModal] = useState(false);
   const [showMediaUploader, setShowMediaUploader] = useState(false);
   const [showComments, setShowComments] = useState(false);
   const [showVersionHistory, setShowVersionHistory] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [isClient, setIsClient] = useState(false);
+
+  // Set client-side flag to avoid SSR issues
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
 
   // Redirect if not authenticated
   useEffect(() => {
@@ -46,7 +52,9 @@ export default function DocumentPage() {
     if (isAuthenticated && documentId) {
       const token = localStorage.getItem('token');
       if (token) {
-        wsClient.connect(documentId, token).catch(console.error);
+        wsClient.connect(documentId, token).catch((error) => {
+          console.error('WebSocket connection error:', error);
+        });
       }
     }
 
@@ -68,24 +76,26 @@ export default function DocumentPage() {
     }
   };
 
+
   const handleExport = () => {
-    if (document?.content) {
-      const blob = new Blob([document.content], { type: 'text/html' });
-      const url = URL.createObjectURL(blob);
-      const a = global.document.createElement('a');
-      a.href = url;
-      a.download = `${document.title || 'document'}.html`;
-      a.click();
-      URL.revokeObjectURL(url);
-    }
+    if (!content) return;
+    downloadFile(content, `${document?.title || 'document'}.html`);
   };
 
-  const handleRestore = (content: string) => {
-    // Update document content
-    updateDocument({ content });
+  const handleRestore = (restoredContent: string) => {
+    setContent(restoredContent);
+    updateDocument({ content: restoredContent });
   };
 
   if (loading) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500" />
+      </div>
+    );
+  }
+
+  if (!isClient) {
     return (
       <div className="flex items-center justify-center h-screen">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500" />
@@ -174,7 +184,7 @@ export default function DocumentPage() {
         <div className="bg-white rounded-lg shadow">
           <TiptapEditor
             documentId={documentId}
-            initialContent={document?.content || ''}
+            initialContent={content || ''}
           />
         </div>
       </div>

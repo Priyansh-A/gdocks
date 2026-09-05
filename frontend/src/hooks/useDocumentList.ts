@@ -10,7 +10,7 @@ interface UseDocumentListReturn {
   loading: boolean;
   error: string | null;
   fetchDocuments: () => Promise<void>;
-  createDocument: (title?: string) => Promise<Document>;
+  createDocument: (title?: string, content?: string) => Promise<Document>;
   deleteDocument: (id: string) => Promise<void>;
   archiveDocument: (id: string) => Promise<void>;
   restoreDocument: (id: string) => Promise<void>;
@@ -26,7 +26,7 @@ export function useDocumentList(): UseDocumentListReturn {
     setLoading(true);
     setError(null);
     try {
-      const response = await apiClient.get('/documents');
+      const response = await apiClient.get('/documents/');
       setDocuments(response.data);
     } catch (err: any) {
       const errorMsg = err.response?.data?.detail || 'Failed to load documents';
@@ -37,10 +37,21 @@ export function useDocumentList(): UseDocumentListReturn {
     }
   }, []);
 
-  // Create a new document
-  const createDocument = useCallback(async (title: string = 'Untitled Document') => {
+  // Create a new document with optional content
+  const createDocument = useCallback(async (title: string = 'Untitled Document', content?: string) => {
     try {
-      const response = await apiClient.post('/documents', { title });
+      let response;
+      try {
+        response = await apiClient.post('/documents/', { 
+          title, 
+          content: content || '<p>Start writing your document...</p>'
+        });
+      } catch {
+        response = await apiClient.post('/documents', { 
+          title,
+          content: content || '<p>Start writing your document...</p>'
+        });
+      }
       const newDoc = response.data;
       setDocuments(prev => [newDoc, ...prev]);
       toast.success('Document created');

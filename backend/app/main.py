@@ -36,11 +36,10 @@ app.add_middleware(
 # Import routers
 from app.routers import auth, users, documents, media
 
-# Include routers
-app.include_router(auth.router, prefix="/api/v1/auth", tags=["Authentication"])
-app.include_router(users.router, prefix="/api/v1/users", tags=["Users"])
-app.include_router(documents.router, prefix="/api/v1/documents", tags=["Documents"])
-app.include_router(media.router, prefix="/api/v1/media", tags=["Media"])
+app.include_router(auth.router, prefix="/api/v1")  
+app.include_router(users.router, prefix="/api/v1")
+app.include_router(documents.router, prefix="/api/v1")
+app.include_router(media.router, prefix="/api/v1")
 
 # WebSocket endpoint
 @app.websocket("/ws/{document_id}")

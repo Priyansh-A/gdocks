@@ -2,27 +2,116 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Plus, FileText, Users, Clock, Archive, Trash2, MoreVertical } from 'lucide-react';
-import { ApiTest } from '@/src/components/Common/ApiTest';
+import { Plus, FileText, Users, Clock, Archive } from 'lucide-react';
 import { useAuth } from '@/src/hooks/useAuth';
 import { useDocumentList } from '@/src/hooks/useDocumentList';
+import { CreateDocumentModal } from '@/src/components/Document/CreateDocumentModal';
 
-export default function DashboardPage() {
+export default function HomePage() {
   const router = useRouter();
-  const { user, isAuthenticated } = useAuth();
+  const { user } = useAuth();
   const { documents, loading, createDocument, deleteDocument, archiveDocument, restoreDocument } = useDocumentList();
   const [creating, setCreating] = useState(false);
-  const [showDebug, setShowDebug] = useState(false);
+  const [showCreateModal, setShowCreateModal] = useState(false);
 
-  const handleCreateDocument = async () => {
+  const handleCreateDocument = async (title: string, type: string) => {
     setCreating(true);
     try {
-      const doc = await createDocument('Untitled Document');
+      // Get template content based on type
+      const templateContent = getTemplateContent(type);
+      const doc = await createDocument(title, templateContent);
+      setShowCreateModal(false);
       router.push(`/doc/${doc.id}`);
     } catch (error) {
-      // Error already handled by hook
+      // Error handled by hook
     } finally {
       setCreating(false);
+    }
+  };
+
+  const getTemplateContent = (type: string): string => {
+    switch (type) {
+      case 'letter':
+        return `
+          <h1>Letter</h1>
+          <p><strong>Date:</strong> </p>
+          <p><strong>To:</strong> </p>
+          <p><strong>From:</strong> </p>
+          <p>Dear </p>
+          <p></p>
+          <p>I am writing to...</p>
+          <p></p>
+          <p>Sincerely,</p>
+          <p></p>
+        `;
+      case 'report':
+        return `
+          <h1>Report Title</h1>
+          <h2>Executive Summary</h2>
+          <p></p>
+          <h2>Introduction</h2>
+          <p></p>
+          <h2>Findings</h2>
+          <ul>
+            <li>Point 1</li>
+            <li>Point 2</li>
+            <li>Point 3</li>
+          </ul>
+          <h2>Conclusion</h2>
+          <p></p>
+        `;
+      case 'blog':
+        return `
+          <h1>Blog Post Title</h1>
+          <p><em>Published on </em></p>
+          <p></p>
+          <h2>Introduction</h2>
+          <p></p>
+          <h2>Main Content</h2>
+          <p></p>
+          <h2>Conclusion</h2>
+          <p></p>
+        `;
+      case 'resume':
+        return `
+          <h1>John Doe</h1>
+          <p><strong>Email:</strong> john@example.com | <strong>Phone:</strong> (123) 456-7890</p>
+          <hr />
+          <h2>Professional Summary</h2>
+          <p></p>
+          <h2>Work Experience</h2>
+          <h3>Job Title - Company Name</h3>
+          <p><em>Date - Present</em></p>
+          <ul>
+            <li>Responsibility 1</li>
+            <li>Responsibility 2</li>
+          </ul>
+          <h2>Education</h2>
+          <h3>Degree - University</h3>
+          <p><em>Date</em></p>
+          <h2>Skills</h2>
+          <ul>
+            <li>Skill 1</li>
+            <li>Skill 2</li>
+          </ul>
+        `;
+      case 'code':
+        return `
+          <h1>Code Documentation</h1>
+          <h2>Overview</h2>
+          <p></p>
+          <h2>Code Example</h2>
+          <pre><code>
+            // Your code here
+            function example() {
+              console.log('Hello World');
+            }
+          </code></pre>
+          <h2>Explanation</h2>
+          <p></p>
+        `;
+      default:
+        return '<p>Start writing your document...</p>';
     }
   };
 
@@ -39,21 +128,6 @@ export default function DashboardPage() {
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-            {/* Debug toggle */}
-      <div className="mb-4">
-        <button
-          onClick={() => setShowDebug(!showDebug)}
-          className="text-sm text-gray-500 hover:text-gray-700"
-        >
-          {showDebug ? 'Hide' : 'Show'} Debug Info
-        </button>
-      </div>
-      
-      {showDebug && (
-        <div className="mb-8">
-          <ApiTest />
-        </div>
-      )}
       {/* Header */}
       <div className="flex justify-between items-center mb-8">
         <div>
@@ -63,12 +137,11 @@ export default function DashboardPage() {
           <p className="text-gray-600 mt-1">Here are your documents</p>
         </div>
         <button
-          onClick={handleCreateDocument}
-          disabled={creating}
-          className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
+          onClick={() => setShowCreateModal(true)}
+          className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
         >
           <Plus className="w-5 h-5" />
-          {creating ? 'Creating...' : 'New Document'}
+          New Document
         </button>
       </div>
 
@@ -126,7 +199,6 @@ export default function DashboardPage() {
             documents={activeDocs} 
             onDelete={deleteDocument}
             onArchive={archiveDocument}
-            onRestore={restoreDocument}
           />
         </div>
       )}
@@ -138,7 +210,6 @@ export default function DashboardPage() {
           <DocumentList 
             documents={archivedDocs} 
             onDelete={deleteDocument}
-            onArchive={archiveDocument}
             onRestore={restoreDocument}
             showRestore
           />
@@ -151,13 +222,21 @@ export default function DashboardPage() {
           <h3 className="text-lg font-medium text-gray-900">No documents yet</h3>
           <p className="text-gray-600 mt-2">Create your first document to get started</p>
           <button
-            onClick={handleCreateDocument}
+            onClick={() => setShowCreateModal(true)}
             className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
           >
             Create Document
           </button>
         </div>
       )}
+
+      {/* Create Document Modal */}
+      <CreateDocumentModal
+        isOpen={showCreateModal}
+        onClose={() => setShowCreateModal(false)}
+        onCreate={handleCreateDocument}
+        isLoading={creating}
+      />
     </div>
   );
 }

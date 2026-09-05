@@ -37,10 +37,10 @@ export function useAuth(): UseAuthReturn {
       const storedToken = localStorage.getItem('token');
       if (storedToken && !isAuthenticated) {
         try {
-          const response = await apiClient.get('/users/me');
+          const response = await apiClient.get('/me');
           setAuth(response.data, storedToken);
         } catch (error) {
-          // Token is invalid
+          console.error('Auth check failed:', error);
           localStorage.removeItem('token');
           localStorage.removeItem('refresh_token');
         }
@@ -54,7 +54,11 @@ export function useAuth(): UseAuthReturn {
   const login = async (credentials: LoginCredentials) => {
     setLoading(true);
     try {
-      const response = await apiClient.post('/auth/login', credentials);
+      console.log('Attempting login with:', { email: credentials.email });
+      
+      const response = await apiClient.post('/login', credentials);
+      console.log('Login response:', response.data);
+      
       const { access_token, refresh_token, user } = response.data;
       
       localStorage.setItem('token', access_token);
@@ -64,7 +68,14 @@ export function useAuth(): UseAuthReturn {
       toast.success('Welcome back!');
       router.push('/dashboard');
     } catch (error: any) {
-      const errorMsg = error.response?.data?.detail || 'Login failed';
+      console.error('Login error full:', error);
+      
+      let errorMsg = 'Login failed';
+      if (error.response?.data?.detail) {
+        errorMsg = error.response.data.detail;
+      } else if (error.message) {
+        errorMsg = error.message;
+      }
       toast.error(errorMsg);
       throw error;
     } finally {
@@ -76,12 +87,20 @@ export function useAuth(): UseAuthReturn {
   const register = async (credentials: RegisterCredentials) => {
     setLoading(true);
     try {
-      const response = await apiClient.post('/auth/register', {
+      console.log('Attempting registration with:', {
+        email: credentials.email,
+        username: credentials.username,
+        full_name: credentials.full_name,
+      });
+      
+      const response = await apiClient.post('/register', {
         email: credentials.email,
         username: credentials.username,
         password: credentials.password,
         full_name: credentials.full_name || '',
       });
+      
+      console.log('Registration response:', response.data);
       
       const { access_token, refresh_token, user } = response.data;
       
@@ -92,7 +111,14 @@ export function useAuth(): UseAuthReturn {
       toast.success('Account created successfully!');
       router.push('/dashboard');
     } catch (error: any) {
-      const errorMsg = error.response?.data?.detail || 'Registration failed';
+      console.error('Registration error full:', error);
+      
+      let errorMsg = 'Registration failed';
+      if (error.response?.data?.detail) {
+        errorMsg = error.response.data.detail;
+      } else if (error.message) {
+        errorMsg = error.message;
+      }
       toast.error(errorMsg);
       throw error;
     } finally {
@@ -103,7 +129,7 @@ export function useAuth(): UseAuthReturn {
   // Logout
   const logout = async () => {
     try {
-      await apiClient.post('/auth/logout');
+      await apiClient.post('/logout');
     } catch (error) {
       // Ignore errors on logout
     } finally {
@@ -126,7 +152,7 @@ export function useAuth(): UseAuthReturn {
         throw new Error('No refresh token');
       }
 
-      const response = await apiClient.post('/auth/refresh', {
+      const response = await apiClient.post('/refresh', {
         refresh_token: refreshToken,
       });
 

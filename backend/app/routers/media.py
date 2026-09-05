@@ -11,7 +11,7 @@ from app.models.user import User
 from app.models.media import Media
 from app.core.exceptions import PermissionDenied, NotFoundError
 
-router = APIRouter()
+router = APIRouter(prefix="/media", tags=["Media"])
 
 @router.post("/upload", response_model=MediaResponse)
 async def upload_file(

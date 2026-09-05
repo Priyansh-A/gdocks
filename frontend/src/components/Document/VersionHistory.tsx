@@ -1,9 +1,9 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { X, Clock, RotateCcw, User, ChevronDown } from 'lucide-react';
+import { X, Clock, RotateCcw, User } from 'lucide-react';
 import { toast } from 'react-hot-toast';
-import apiClient from '@/lib/api-client';
+import apiClient from '@/src/lib/api-client';
 import { formatDistanceToNow } from 'date-fns';
 
 interface Version {

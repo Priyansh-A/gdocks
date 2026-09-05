@@ -10,6 +10,8 @@ interface UseDocumentReturn {
   document: DocumentWithPermissions | null;
   loading: boolean;
   error: string | null;
+  content: string;
+  setContent: (content: string) => void;
   fetchDocument: (id: string) => Promise<void>;
   updateDocument: (data: Partial<Document>) => Promise<void>;
   saveContent: () => Promise<void>;
@@ -42,7 +44,7 @@ export function useDocument(documentId: string): UseDocumentReturn {
       setError(errorMsg);
       toast.error(errorMsg);
       if (err.response?.status === 404) {
-        router.push('/');
+        router.push('/dashboard');
       }
     } finally {
       setLoading(false);
@@ -73,6 +75,7 @@ export function useDocument(documentId: string): UseDocumentReturn {
         content: content,
       });
       setDocument(response.data);
+      toast.success('Document saved');
     } catch (err: any) {
       const errorMsg = err.response?.data?.detail || 'Failed to save document';
       toast.error(errorMsg);
@@ -87,7 +90,7 @@ export function useDocument(documentId: string): UseDocumentReturn {
     try {
       await apiClient.delete(`/documents/${document.id}`);
       toast.success('Document deleted');
-      router.push('/');
+      router.push('/dashboard');
     } catch (err: any) {
       const errorMsg = err.response?.data?.detail || 'Failed to delete document';
       toast.error(errorMsg);
@@ -177,9 +180,8 @@ export function useDocument(documentId: string): UseDocumentReturn {
         role,
       });
       
-      setDocument((prev: DocumentWithPermissions | null) => {
+      setDocument(prev => {
         if (!prev) return prev;
-        
         return {
           ...prev,
           permissions: prev.permissions.map((p) =>
@@ -204,7 +206,7 @@ export function useDocument(documentId: string): UseDocumentReturn {
       if (content !== document.content) {
         saveContent();
       }
-    }, 3000);
+    }, 5000);
 
     return () => clearTimeout(saveTimeout);
   }, [content, document, saveContent]);
@@ -220,6 +222,8 @@ export function useDocument(documentId: string): UseDocumentReturn {
     document,
     loading,
     error,
+    content,
+    setContent,
     fetchDocument,
     updateDocument,
     saveContent,

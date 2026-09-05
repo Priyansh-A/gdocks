@@ -6,14 +6,13 @@ from app.database import Base
 import uuid
 
 class Comment(Base):
-    """Comment model for document commenting."""
     __tablename__ = "comments"
     
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     document_id = Column(UUID(as_uuid=True), ForeignKey("documents.id", ondelete="CASCADE"), nullable=False)
     user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     content = Column(Text, nullable=False)
-    selection = Column(JSON, nullable=True)  # {start: 0, end: 10}
+    selection = Column(JSON, nullable=True)
     parent_id = Column(UUID(as_uuid=True), ForeignKey("comments.id", ondelete="CASCADE"), nullable=True)
     resolved = Column(Boolean, default=False)
     resolved_at = Column(DateTime(timezone=True), nullable=True)
@@ -25,11 +24,11 @@ class Comment(Base):
     document = relationship("Document", back_populates="comments")
     user = relationship("User", foreign_keys=[user_id])
     resolver = relationship("User", foreign_keys=[resolved_by])
+    
     replies = relationship(
         "Comment",
         backref="parent",
         remote_side=[id],
-        cascade="all, delete-orphan"
     )
     
     # Indexes

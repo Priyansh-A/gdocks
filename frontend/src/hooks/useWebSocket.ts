@@ -3,7 +3,6 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { wsClient } from '@/src/lib/websocket-client';
 import { useAuthStore } from '@/src/store/authStore';
-import { WebSocketMessage } from '@/src/types';
 
 interface UseWebSocketReturn {
   isConnected: boolean;
@@ -74,21 +73,6 @@ export function useWebSocket(documentId?: string): UseWebSocketReturn {
       disconnect();
     };
   }, [documentId, token, connect, disconnect]);
-
-  // Handle connection status changes
-  useEffect(() => {
-    const handleOpen = () => setIsConnected(true);
-    const handleClose = () => setIsConnected(false);
-
-    // This is simplified - you'd need to add event listeners to wsClient
-    // For now, we'll poll the connection status
-    const interval = setInterval(() => {
-      // Check if WebSocket is connected
-      // This would need to be implemented in wsClient
-    }, 1000);
-
-    return () => clearInterval(interval);
-  }, []);
 
   return {
     isConnected,

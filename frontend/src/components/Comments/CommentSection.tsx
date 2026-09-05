@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { MessageSquare, X, Send, Check, User } from 'lucide-react';
+import { MessageSquare, X, Send, Check } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import apiClient from '@/src/lib/api-client';
 import { useAuthStore } from '@/src/store/authStore';
@@ -36,8 +36,13 @@ export function CommentSection({ documentId, selection }: CommentSectionProps) {
     try {
       const response = await apiClient.get(`/documents/${documentId}/comments`);
       setComments(response.data);
-    } catch (error) {
-      toast.error('Failed to load comments');
+    } catch (error: any) {
+      // Don't show error for 404 - comments endpoint may not exist yet
+      if (error.response?.status !== 404) {
+        toast.error('Failed to load comments');
+      }
+      // Set empty comments array
+      setComments([]);
     } finally {
       setLoading(false);
     }
@@ -54,8 +59,10 @@ export function CommentSection({ documentId, selection }: CommentSectionProps) {
       setComments(prev => [response.data, ...prev]);
       setNewComment('');
       toast.success('Comment added');
-    } catch (error) {
-      toast.error('Failed to add comment');
+    } catch (error: any) {
+      if (error.response?.status !== 404) {
+        toast.error('Failed to add comment');
+      }
     }
   };
 
@@ -70,8 +77,10 @@ export function CommentSection({ documentId, selection }: CommentSectionProps) {
         )
       );
       toast.success('Comment resolved');
-    } catch (error) {
-      toast.error('Failed to resolve comment');
+    } catch (error: any) {
+      if (error.response?.status !== 404) {
+        toast.error('Failed to resolve comment');
+      }
     }
   };
 
@@ -80,8 +89,10 @@ export function CommentSection({ documentId, selection }: CommentSectionProps) {
       await apiClient.delete(`/documents/${documentId}/comments/${commentId}`);
       setComments(prev => prev.filter(c => c.id !== commentId));
       toast.success('Comment deleted');
-    } catch (error) {
-      toast.error('Failed to delete comment');
+    } catch (error: any) {
+      if (error.response?.status !== 404) {
+        toast.error('Failed to delete comment');
+      }
     }
   };
 
@@ -102,7 +113,7 @@ export function CommentSection({ documentId, selection }: CommentSectionProps) {
   }
 
   return (
-    <div className="fixed bottom-4 left-4 w-96 max-h-[600px] bg-white rounded-lg shadow-2xl border border-gray-200 flex flex-col">
+    <div className="fixed bottom-4 left-4 w-96 max-h-150 bg-white rounded-lg shadow-2xl border border-gray-200 flex flex-col">
       {/* Header */}
       <div className="flex items-center justify-between p-4 border-b border-gray-200">
         <div className="flex items-center gap-2">
@@ -129,22 +140,22 @@ export function CommentSection({ documentId, selection }: CommentSectionProps) {
             <p className="text-gray-500">No comments yet</p>
           </div>
         ) : (
-          comments.map((comment) => (
+          comments.map((comment, index) => (
             <div
-              key={comment.id}
+              key={comment.id || index}
               className={`p-3 rounded-lg ${
                 comment.resolved ? 'bg-gray-50 opacity-60' : 'bg-blue-50'
               }`}
             >
               <div className="flex items-start gap-3">
-                <div className="w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center text-white text-sm font-medium flex-shrink-0">
+                <div className="w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center text-white text-sm font-medium shrink-0">
                   {comment.username?.charAt(0).toUpperCase() || 'U'}
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
                       <span className="font-medium text-gray-900">
-                        {comment.username}
+                        {comment.username || 'Unknown'}
                       </span>
                       <span className="text-xs text-gray-500">
                         {new Date(comment.created_at).toLocaleString()}

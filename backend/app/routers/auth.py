@@ -13,7 +13,7 @@ from app.core.security import (
 from app.core.exceptions import AuthenticationError
 from app.config import settings
 
-router = APIRouter(prefix="/auth", tags=["auth"])
+router = APIRouter(tags=["Authentication"])
 
 @router.post("/register", response_model=TokenResponse)
 async def register(user_data: UserCreate, db: AsyncSession = Depends(get_db)):

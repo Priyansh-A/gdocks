@@ -5,11 +5,8 @@ import { toast } from 'react-hot-toast';
 import apiClient from '@/src/lib/api-client';
 import { Permission } from '@/src/types';
 
-type RoleType = Permission['role'];
-
 interface UsePermissionsReturn {
   permissions: Permission[];
-  setPermissions: React.Dispatch<React.SetStateAction<Permission[]>>;
   loading: boolean;
   fetchPermissions: (documentId: string) => Promise<void>;
   addPermission: (documentId: string, userId: string, role: string) => Promise<void>;
@@ -70,19 +67,19 @@ export function usePermissions(): UsePermissionsReturn {
     }
   }, []);
 
-  // Update permission - using string type to match interface
+  // Update permission
   const updatePermission = useCallback(async (
     documentId: string,
     userId: string,
     role: string
-  ): Promise<void> => {
+  ) => {
     try {
       await apiClient.put(`/documents/${documentId}/permissions/${userId}`, {
         role,
       });
-      setPermissions((prev: Permission[]) =>
-        prev.map((p: Permission) =>
-          p.user_id === userId ? { ...p, role: role as RoleType } : p
+      setPermissions(prev =>
+        prev.map(p =>
+          p.user_id === userId ? { ...p, role: role as Permission['role'] } : p
         )
       );
       toast.success('Permission updated');
@@ -108,7 +105,6 @@ export function usePermissions(): UsePermissionsReturn {
   return {
     permissions,
     loading,
-    setPermissions,
     fetchPermissions,
     addPermission,
     removePermission,

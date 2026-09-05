@@ -1,10 +1,10 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { X, Copy, Check, UserPlus, Mail, Link2, Settings } from 'lucide-react';
+import { X, Copy, Check, UserPlus, Link2 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
-import apiClient from '@/lib/api-client';
-import { Permission, User } from '@/types';
+import apiClient from '@/src/lib/api-client';
+import { Permission } from '@/src/types';
 
 interface ShareModalProps {
   documentId: string;
@@ -22,7 +22,6 @@ export function ShareModal({ documentId, onClose }: ShareModalProps) {
 
   useEffect(() => {
     fetchPermissions();
-    generateShareLink();
   }, [documentId]);
 
   const fetchPermissions = async () => {
@@ -35,15 +34,7 @@ export function ShareModal({ documentId, onClose }: ShareModalProps) {
   };
 
   const generateShareLink = async () => {
-    try {
-      const response = await apiClient.post(`/documents/${documentId}/share`, {
-        role: 'viewer',
-        expires_in: 7, // days
-      });
-      setShareLink(`${window.location.origin}/share/${response.data.token}`);
-    } catch (error) {
-      console.error('Failed to generate share link');
-    }
+      setShareLink(`${window.location.origin}/share/${documentId}`)
   };
 
   const addPermission = async () => {
@@ -55,7 +46,7 @@ export function ShareModal({ documentId, onClose }: ShareModalProps) {
     setLoading(true);
     try {
       await apiClient.post(`/documents/${documentId}/permissions`, {
-        user_id: email, // In production, you'd search for user by email
+        user_id: email,
         role,
       });
       toast.success('User added successfully');
@@ -95,19 +86,6 @@ export function ShareModal({ documentId, onClose }: ShareModalProps) {
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
     toast.success('Link copied to clipboard');
-  };
-
-  const togglePublicAccess = async () => {
-    try {
-      await apiClient.put(`/documents/${documentId}/public`, {
-        is_public: !isPublic,
-      });
-      setIsPublic(!isPublic);
-      toast.success(isPublic ? 'Link disabled' : 'Link enabled');
-      await generateShareLink();
-    } catch (error) {
-      toast.error('Failed to update share settings');
-    }
   };
 
   return (
@@ -234,24 +212,6 @@ export function ShareModal({ documentId, onClose }: ShareModalProps) {
                 )}
                 {copied ? 'Copied' : 'Copy'}
               </button>
-            </div>
-            <div className="mt-3 flex items-center gap-3">
-              <label className="flex items-center gap-2 text-sm text-gray-600">
-                <input
-                  type="checkbox"
-                  checked={isPublic}
-                  onChange={togglePublicAccess}
-                  className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                />
-                Anyone with the link can view
-              </label>
-              <select
-                className="text-sm border border-gray-300 rounded-lg px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="viewer">Viewer</option>
-                <option value="commenter">Commenter</option>
-                <option value="editor">Editor</option>
-              </select>
             </div>
           </div>
         </div>
