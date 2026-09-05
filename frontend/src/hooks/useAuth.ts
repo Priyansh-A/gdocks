@@ -62,7 +62,7 @@ export function useAuth(): UseAuthReturn {
       
       setAuth(user, access_token);
       toast.success('Welcome back!');
-      router.push('/');
+      router.push('/dashboard');
     } catch (error: any) {
       const errorMsg = error.response?.data?.detail || 'Login failed';
       toast.error(errorMsg);
@@ -76,7 +76,13 @@ export function useAuth(): UseAuthReturn {
   const register = async (credentials: RegisterCredentials) => {
     setLoading(true);
     try {
-      const response = await apiClient.post('/auth/register', credentials);
+      const response = await apiClient.post('/auth/register', {
+        email: credentials.email,
+        username: credentials.username,
+        password: credentials.password,
+        full_name: credentials.full_name || '',
+      });
+      
       const { access_token, refresh_token, user } = response.data;
       
       localStorage.setItem('token', access_token);
@@ -84,7 +90,7 @@ export function useAuth(): UseAuthReturn {
       
       setAuth(user, access_token);
       toast.success('Account created successfully!');
-      router.push('/');
+      router.push('/dashboard');
     } catch (error: any) {
       const errorMsg = error.response?.data?.detail || 'Registration failed';
       toast.error(errorMsg);

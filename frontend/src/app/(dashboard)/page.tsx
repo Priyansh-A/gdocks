@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Plus, FileText, Users, Clock, Archive, Trash2, MoreVertical } from 'lucide-react';
-import { toast } from 'react-hot-toast';
+import { ApiTest } from '@/src/components/Common/ApiTest';
 import { useAuth } from '@/src/hooks/useAuth';
 import { useDocumentList } from '@/src/hooks/useDocumentList';
 
@@ -12,6 +12,7 @@ export default function DashboardPage() {
   const { user, isAuthenticated } = useAuth();
   const { documents, loading, createDocument, deleteDocument, archiveDocument, restoreDocument } = useDocumentList();
   const [creating, setCreating] = useState(false);
+  const [showDebug, setShowDebug] = useState(false);
 
   const handleCreateDocument = async () => {
     setCreating(true);
@@ -38,6 +39,21 @@ export default function DashboardPage() {
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+            {/* Debug toggle */}
+      <div className="mb-4">
+        <button
+          onClick={() => setShowDebug(!showDebug)}
+          className="text-sm text-gray-500 hover:text-gray-700"
+        >
+          {showDebug ? 'Hide' : 'Show'} Debug Info
+        </button>
+      </div>
+      
+      {showDebug && (
+        <div className="mb-8">
+          <ApiTest />
+        </div>
+      )}
       {/* Header */}
       <div className="flex justify-between items-center mb-8">
         <div>
