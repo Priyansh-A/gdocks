@@ -1,3 +1,6 @@
+// Document Type Enum
+export type DocumentType = 'document' | 'pdf' | 'media';
+
 export interface User {
   id: string;
   email: string;
@@ -12,6 +15,9 @@ export interface Document {
   id: string;
   title: string;
   content: string | null;
+  document_type: DocumentType; 
+  file_url: string | null;      
+  file_metadata: Record<string, any> | null; 
   version: number;
   owner_id: string;
   is_archived: boolean;
@@ -28,16 +34,11 @@ export interface DocumentWithPermissions extends Document {
 
 export interface Permission {
   id: string;
+  document_id: string;
   user_id: string;
   role: 'owner' | 'editor' | 'viewer' | 'commenter';
-  user?: {
-    id: string;
-    username: string;
-    email: string;
-    avatar_url?: string;
-  };
+  created_at: string;
 }
-
 
 export interface Media {
   id: string;

@@ -1,17 +1,17 @@
 'use client';
-import { downloadFile } from '@/src/utils/export';
+
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { toast } from 'react-hot-toast';
-import { TiptapEditor } from '@/src/components/Editor/TiptapEditor';
-import { ChatBox } from '@/src/components/Chat/ChatBox';
-import { ShareModal } from '@/src/components/Permissions/ShareModal';
-import { MediaUploader } from '@/src/components/Media/MediaUploader';
-import { CommentSection } from '@/src/components/Comments/CommentSection';
-import { VersionHistory } from '@/src/components/Document/VersionHistory';
-import { useAuthStore } from '@/src/store/authStore';
-import { useDocument } from '@/src/hooks/useDocument';
-import { wsClient } from '@/src/lib/websocket-client';
+import { TiptapEditor } from '@/components/Editor/TiptapEditor';
+import { ChatBox } from '@/components/Chat/ChatBox';
+import { ShareModal } from '@/components/Permissions/ShareModal';
+import { MediaUploader } from '@/components/Media/MediaUploader';
+import { CommentSection } from '@/components/Comments/CommentSection';
+import { VersionHistory } from '@/components/Document/VersionHistory';
+import { useAuthStore } from '@/store/authStore';
+import { useDocument } from '@/hooks/useDocument';
+import { wsClient } from '@/lib/websocket-client';
 import { 
   Share2, 
   Image, 
@@ -19,7 +19,10 @@ import {
   Download,
   ArrowLeft,
   Clock,
-  MessageSquare
+  MessageSquare,
+  FileText,
+  File,
+  Film
 } from 'lucide-react';
 
 export default function DocumentPage() {
@@ -35,19 +38,16 @@ export default function DocumentPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [isClient, setIsClient] = useState(false);
 
-  // Set client-side flag to avoid SSR issues
   useEffect(() => {
     setIsClient(true);
   }, []);
 
-  // Redirect if not authenticated
   useEffect(() => {
     if (!isAuthenticated) {
       router.push('/login');
     }
   }, [isAuthenticated, router]);
 
-  // Connect to WebSocket
   useEffect(() => {
     if (isAuthenticated && documentId) {
       const token = localStorage.getItem('token');
@@ -76,18 +76,40 @@ export default function DocumentPage() {
     }
   };
 
-
   const handleExport = () => {
-    if (!content) return;
-    downloadFile(content, `${document?.title || 'document'}.html`);
+    if (typeof window === 'undefined' || !content) return;
+    
+    try {
+      const blob = new Blob([content], { type: 'text/html' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${document?.title || 'document'}.html`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      toast.success('Document exported successfully');
+    } catch (error) {
+      console.error('Export failed:', error);
+      toast.error('Failed to export document');
+    }
   };
 
-  const handleRestore = (restoredContent: string) => {
-    setContent(restoredContent);
-    updateDocument({ content: restoredContent });
+  const getDocumentTypeIcon = () => {
+    // Use optional chaining to safely access document properties
+    const docType = document?.document_type;
+    
+    if (docType === 'pdf') {
+      return <File className="w-5 h-5 text-red-500" />;
+    } else if (docType === 'media') {
+      return <Film className="w-5 h-5 text-purple-500" />;
+    }
+    return <FileText className="w-5 h-5 text-blue-500" />;
   };
 
-  if (loading) {
+  // Show loading state
+  if (loading || !isClient) {
     return (
       <div className="flex items-center justify-center h-screen">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500" />
@@ -95,13 +117,32 @@ export default function DocumentPage() {
     );
   }
 
-  if (!isClient) {
+  // Guard clause: If document is null, show error state
+  if (!document) {
     return (
       <div className="flex items-center justify-center h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500" />
+        <div className="text-center">
+          <div className="bg-red-50 border border-red-200 rounded-lg p-8 max-w-md">
+            <h2 className="text-xl font-semibold text-red-700 mb-2">Document Not Found</h2>
+            <p className="text-red-600 mb-4">The document you're looking for doesn't exist or you don't have permission to view it.</p>
+            <button 
+              onClick={() => router.push('/dashboard')}
+              className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+            >
+              Go to Dashboard
+            </button>
+          </div>
+        </div>
       </div>
     );
   }
+
+  // After the guard clause, TypeScript knows document is not null
+  // But use optional chaining to be safe
+  const documentTitle = document.title || 'Untitled Document';
+  const documentType = document.document_type || 'document';
+  const fileUrl = document.file_url;
+  const fileMetadata = document.file_metadata;
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -111,34 +152,47 @@ export default function DocumentPage() {
           <div className="flex items-center gap-4">
             <button
               onClick={() => router.push('/')}
-              className="text-gray-600 hover:text-gray-900"
+              className="text-gray-600 hover:text-gray-900 transition-colors"
+              aria-label="Go back"
             >
               <ArrowLeft className="w-5 h-5" />
             </button>
-            <h1 className="text-xl font-semibold text-gray-900">
-              {document?.title || 'Untitled Document'}
-            </h1>
+            <div className="flex items-center gap-2">
+              {getDocumentTypeIcon()}
+              <h1 className="text-xl font-semibold text-gray-900">
+                {documentTitle}
+              </h1>
+              {documentType && documentType !== 'document' && (
+                <span className="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded-full uppercase">
+                  {documentType}
+                </span>
+              )}
+            </div>
           </div>
 
           <div className="flex items-center gap-2">
-            <button
-              onClick={handleSave}
-              disabled={isSaving}
-              className="flex items-center gap-2 px-3 py-2 text-sm bg-green-50 text-green-700 rounded-lg hover:bg-green-100 transition-colors"
-            >
-              <Save className="w-4 h-4" />
-              {isSaving ? 'Saving...' : 'Save'}
-            </button>
+            {documentType === 'document' && (
+              <>
+                <button
+                  onClick={handleSave}
+                  disabled={isSaving}
+                  className="flex items-center gap-2 px-3 py-2 text-sm bg-green-50 text-green-700 rounded-lg hover:bg-green-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <Save className="w-4 h-4" />
+                  {isSaving ? 'Saving...' : 'Save'}
+                </button>
 
-            <button
-              onClick={handleExport}
-              className="flex items-center gap-2 px-3 py-2 text-sm bg-gray-50 text-gray-700 rounded-lg hover:bg-gray-100 transition-colors"
-            >
-              <Download className="w-4 h-4" />
-              Export
-            </button>
+                <button
+                  onClick={handleExport}
+                  className="flex items-center gap-2 px-3 py-2 text-sm bg-gray-50 text-gray-700 rounded-lg hover:bg-gray-100 transition-colors"
+                >
+                  <Download className="w-4 h-4" />
+                  Export
+                </button>
 
-            <div className="w-px h-8 bg-gray-200" />
+                <div className="w-px h-8 bg-gray-200" />
+              </>
+            )}
 
             <button
               onClick={() => setShowMediaUploader(true)}
@@ -160,13 +214,15 @@ export default function DocumentPage() {
               Comments
             </button>
 
-            <button
-              onClick={() => setShowVersionHistory(true)}
-              className="flex items-center gap-2 px-3 py-2 text-sm bg-gray-50 text-gray-700 rounded-lg hover:bg-gray-100 transition-colors"
-            >
-              <Clock className="w-4 h-4" />
-              History
-            </button>
+            {documentType === 'document' && (
+              <button
+                onClick={() => setShowVersionHistory(true)}
+                className="flex items-center gap-2 px-3 py-2 text-sm bg-gray-50 text-gray-700 rounded-lg hover:bg-gray-100 transition-colors"
+              >
+                <Clock className="w-4 h-4" />
+                History
+              </button>
+            )}
 
             <button
               onClick={() => setShowShareModal(true)}
@@ -184,7 +240,10 @@ export default function DocumentPage() {
         <div className="bg-white rounded-lg shadow">
           <TiptapEditor
             documentId={documentId}
+            documentType={documentType}
             initialContent={content || ''}
+            fileUrl={fileUrl}
+            fileMetadata={fileMetadata}
           />
         </div>
       </div>
@@ -212,11 +271,14 @@ export default function DocumentPage() {
         />
       )}
 
-      {showVersionHistory && (
+      {showVersionHistory && documentType === 'document' && (
         <VersionHistory
           documentId={documentId}
           onClose={() => setShowVersionHistory(false)}
-          onRestore={handleRestore}
+          onRestore={(restoredContent: string) => {
+            setContent(restoredContent);
+            updateDocument({ content: restoredContent });
+          }}
         />
       )}
     </div>
