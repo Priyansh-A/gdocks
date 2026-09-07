@@ -1,20 +1,35 @@
 from pydantic import BaseModel, Field
-from typing import Optional, List
+from typing import Optional, List, Dict, Any
 from datetime import datetime
 import uuid
+from enum import Enum
+
+class DocumentType(str, Enum):
+    DOCUMENT = "document"
+    PDF = "pdf"
+    MEDIA = "media"
 
 class DocumentBase(BaseModel):
     title: str = "Untitled Document"
+    document_type: DocumentType = DocumentType.DOCUMENT
 
 class DocumentCreate(DocumentBase):
-    pass
+    content: Optional[str] = None
+    file_url: Optional[str] = None
+    file_metadata: Optional[Dict[str, Any]] = None
 
 class DocumentUpdate(BaseModel):
     title: Optional[str] = None
     content: Optional[str] = None
+    file_url: Optional[str] = None
+    file_metadata: Optional[Dict[str, Any]] = None
+    is_archived: Optional[bool] = None
 
 class DocumentResponse(DocumentBase):
     id: uuid.UUID
+    content: Optional[str] = None
+    file_url: Optional[str] = None
+    file_metadata: Optional[Dict[str, Any]] = None
     version: int
     owner_id: uuid.UUID
     is_archived: bool
