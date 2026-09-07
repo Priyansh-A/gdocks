@@ -3,15 +3,15 @@
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { toast } from 'react-hot-toast';
-import { TiptapEditor } from '@/components/Editor/TiptapEditor';
-import { ChatBox } from '@/components/Chat/ChatBox';
-import { ShareModal } from '@/components/Permissions/ShareModal';
-import { MediaUploader } from '@/components/Media/MediaUploader';
-import { CommentSection } from '@/components/Comments/CommentSection';
-import { VersionHistory } from '@/components/Document/VersionHistory';
-import { useAuthStore } from '@/store/authStore';
-import { useDocument } from '@/hooks/useDocument';
-import { wsClient } from '@/lib/websocket-client';
+import { TiptapEditor, DocumentType } from '@/src/components/Editor/TiptapEditor';
+import { ChatBox } from '@/src/components/Chat/ChatBox';
+import { ShareModal } from '@/src/components/Permissions/ShareModal';
+import { MediaUploader } from '@/src/components/Media/MediaUploader';
+import { CommentSection } from '@/src/components/Comments/CommentSection';
+import { VersionHistory } from '@/src/components/Document/VersionHistory';
+import { useAuthStore } from '@/src/store/authStore';
+import { useDocument } from '@/src/hooks/useDocument';
+import { wsClient } from '@/src/lib/websocket-client';
 import { 
   Share2, 
   Image, 
@@ -30,7 +30,7 @@ export default function DocumentPage() {
   const router = useRouter();
   const documentId = params.id as string;
   const { isAuthenticated } = useAuthStore();
-  const { document, loading, updateDocument, saveContent, content, setContent } = useDocument(documentId);
+  const { document: docData, loading, updateDocument, saveContent, content, setContent } = useDocument(documentId);
   const [showShareModal, setShowShareModal] = useState(false);
   const [showMediaUploader, setShowMediaUploader] = useState(false);
   const [showComments, setShowComments] = useState(false);
@@ -82,12 +82,13 @@ export default function DocumentPage() {
     try {
       const blob = new Blob([content], { type: 'text/html' });
       const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
+      const a = window.document.createElement('a');
       a.href = url;
-      a.download = `${document?.title || 'document'}.html`;
-      document.body.appendChild(a);
+      const title = docData?.title || 'document';
+      a.download = `${title}.html`;
+      window.document.body.appendChild(a);
       a.click();
-      document.body.removeChild(a);
+      window.document.body.removeChild(a);
       URL.revokeObjectURL(url);
       toast.success('Document exported successfully');
     } catch (error) {
@@ -97,12 +98,12 @@ export default function DocumentPage() {
   };
 
   const getDocumentTypeIcon = () => {
-    // Use optional chaining to safely access document properties
-    const docType = document?.document_type;
+    const docType = docData?.document_type;
     
     if (docType === 'pdf') {
       return <File className="w-5 h-5 text-red-500" />;
-    } else if (docType === 'media') {
+    }
+    if (docType === 'media') {
       return <Film className="w-5 h-5 text-purple-500" />;
     }
     return <FileText className="w-5 h-5 text-blue-500" />;
@@ -117,8 +118,7 @@ export default function DocumentPage() {
     );
   }
 
-  // Guard clause: If document is null, show error state
-  if (!document) {
+  if (!docData) {
     return (
       <div className="flex items-center justify-center h-screen">
         <div className="text-center">
@@ -137,12 +137,11 @@ export default function DocumentPage() {
     );
   }
 
-  // After the guard clause, TypeScript knows document is not null
-  // But use optional chaining to be safe
-  const documentTitle = document.title || 'Untitled Document';
-  const documentType = document.document_type || 'document';
-  const fileUrl = document.file_url;
-  const fileMetadata = document.file_metadata;
+
+  const documentTitle = docData.title || 'Untitled Document';
+  const documentType = (docData.document_type || 'document') as DocumentType;
+  const fileUrl = docData.file_url;
+  const fileMetadata = docData.file_metadata;
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -162,7 +161,7 @@ export default function DocumentPage() {
               <h1 className="text-xl font-semibold text-gray-900">
                 {documentTitle}
               </h1>
-              {documentType && documentType !== 'document' && (
+              {documentType !== 'document' && (
                 <span className="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded-full uppercase">
                   {documentType}
                 </span>

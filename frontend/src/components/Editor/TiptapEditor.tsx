@@ -5,23 +5,32 @@ import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Placeholder from '@tiptap/extension-placeholder';
 import Image from '@tiptap/extension-image';
-// Remove Link import - it's already in StarterKit
-// import Link from '@tiptap/extension-link';
+import Link from '@tiptap/extension-link';
 import * as Y from 'yjs';
 import { WebsocketProvider } from 'y-websocket';
 import { EditorToolbar } from './EditorToolbar';
+import { PDFViewer } from './PDFViewer';
+import { MediaViewer } from './MediaViewer';
 import { useAuthStore } from '@/src/store/authStore';
 import './EditorStyles.css';
 
+export type DocumentType = 'document' | 'pdf' | 'media';
+
 interface TiptapEditorProps {
   documentId: string;
+  documentType?: DocumentType;  
   initialContent?: string;
+  fileUrl?: string | null;
+  fileMetadata?: Record<string, any> | null;
   readOnly?: boolean;
 }
 
 export function TiptapEditor({ 
-  documentId, 
+  documentId,
+  documentType = 'document',  
   initialContent = '', 
+  fileUrl,
+  fileMetadata,
   readOnly = false 
 }: TiptapEditorProps) {
   const [isConnected, setIsConnected] = useState(false);
@@ -31,7 +40,29 @@ export function TiptapEditor({
   const ydocRef = useRef<Y.Doc | null>(null);
   const providerRef = useRef<WebsocketProvider | null>(null);
 
-  // Initialize editor - removed duplicate Link extension
+  // For PDF and Media, use the appropriate viewer
+  if (documentType === 'pdf' && fileUrl) {
+    return (
+      <PDFViewer
+        url={fileUrl}
+        title={fileMetadata?.originalName || 'PDF Document'}
+        readOnly={readOnly}
+      />
+    );
+  }
+
+  if (documentType === 'media' && fileUrl) {
+    return (
+      <MediaViewer
+        url={fileUrl}
+        title={fileMetadata?.originalName || 'Media'}
+        mimeType={fileMetadata?.mimeType || 'application/octet-stream'}
+        readOnly={readOnly}
+      />
+    );
+  }
+
+  // For regular documents, use the rich text editor
   const editor = useEditor({
     extensions: [
       StarterKit.configure({
@@ -50,22 +81,20 @@ export function TiptapEditor({
           class: 'max-w-full h-auto rounded-lg',
         },
       }),
-      // Link extension removed - already in StarterKit
     ],
-    content: initialContent || '<p>Welcome to your document!</p>',
+    content: initialContent || '<p>Start writing your document...</p>',
     editable: !readOnly,
     editorProps: {
       attributes: {
         class: 'prose prose-lg max-w-none focus:outline-none min-h-[500px] p-4',
       },
     },
-    // Add immediatelyRender: true for Next.js hydration
     immediatelyRender: true,
   });
 
-  // Initialize Yjs
+  // Yjs sync for real-time collaboration
   useEffect(() => {
-    if (!editor || !token || !documentId) return;
+    if (!editor || !token || !documentId || documentType !== 'document') return;
 
     const ydoc = new Y.Doc();
     ydocRef.current = ydoc;
@@ -124,7 +153,6 @@ export function TiptapEditor({
         setIsConnected(isSynced);
       });
 
-      // Handle WebSocket errors
       provider.on('status', ({ status }: any) => {
         console.log('WebSocket connection status:', status);
         setIsConnected(status === 'connected');
@@ -167,11 +195,11 @@ export function TiptapEditor({
       console.error('Error setting up Yjs provider:', error);
       setIsConnected(false);
     }
-  }, [documentId, editor, token, initialContent]);
+  }, [documentId, editor, token, initialContent, documentType]);
 
   if (!editor) {
     return (
-      <div className="flex justify-center items-center p-8 min-h-125">
+      <div className="flex justify-center items-center p-8 min-h-[500px]">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500" />
       </div>
     );

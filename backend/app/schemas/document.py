@@ -46,10 +46,11 @@ class PermissionBase(BaseModel):
 class PermissionCreate(PermissionBase):
     user_id: uuid.UUID
 
-class PermissionResponse(PermissionBase):
+class PermissionResponse(BaseModel):
     id: uuid.UUID
     document_id: uuid.UUID
     user_id: uuid.UUID
+    role: str
     created_at: datetime
     
     class Config:
@@ -59,3 +60,6 @@ class DocumentWithPermissions(DocumentResponse):
     permissions: List[PermissionResponse] = []
     is_owner: bool = False
     user_role: Optional[str] = None
+
+
+
