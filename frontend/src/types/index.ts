@@ -1,4 +1,3 @@
-// Document Type Enum
 export type DocumentType = 'document' | 'pdf' | 'media';
 
 export interface User {
@@ -15,9 +14,9 @@ export interface Document {
   id: string;
   title: string;
   content: string | null;
-  document_type: DocumentType; 
-  file_url: string | null;      
-  file_metadata: Record<string, any> | null; 
+  document_type: DocumentType;
+  file_url: string | null;
+  file_metadata: Record<string, any> | null;
   version: number;
   owner_id: string;
   is_archived: boolean;

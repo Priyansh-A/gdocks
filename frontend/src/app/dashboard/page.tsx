@@ -14,20 +14,18 @@ export default function HomePage() {
   const [creating, setCreating] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
 
-  const handleCreateDocument = async (title: string, type: string) => {
-    setCreating(true);
-    try {
-      // Get template content based on type
-      const templateContent = getTemplateContent(type);
-      const doc = await createDocument(title, templateContent);
-      setShowCreateModal(false);
-      router.push(`/doc/${doc.id}`);
-    } catch (error) {
-      // Error handled by hook
-    } finally {
-      setCreating(false);
-    }
-  };
+
+const handleCreateDocument = async (title: string, type: string, file?: File) => {
+  setCreating(true);
+  try {
+    const doc = await createDocument(title, type, file);
+    setShowCreateModal(false);
+    router.push(`/doc/${doc.id}`);
+  } catch (error) {
+  } finally {
+    setCreating(false);
+  }
+};
 
   const getTemplateContent = (type: string): string => {
     switch (type) {
