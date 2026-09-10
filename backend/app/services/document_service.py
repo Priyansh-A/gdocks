@@ -85,10 +85,11 @@ class DocumentService:
     async def get_user_documents(
         db: AsyncSession,
         user_id: uuid.UUID,
-        include_archived: bool = False
+        include_archived: bool = False,
+        limit: int = 50,
+        offset: int = 0,
     ) -> List[Document]:
-        """Get all documents for a user (owned or shared)."""
-        # Get documents where user is owner or has permission
+        """Get documents for a user (owned or shared) with pagination."""
         query = select(Document).where(
             and_(
                 Document.is_deleted == False,
@@ -107,7 +108,7 @@ class DocumentService:
         if not include_archived:
             query = query.where(Document.is_archived == False)
         
-        query = query.order_by(Document.last_edited_at.desc())
+        query = query.order_by(Document.last_edited_at.desc()).limit(limit).offset(offset)
         
         result = await db.execute(query)
         return result.scalars().all()

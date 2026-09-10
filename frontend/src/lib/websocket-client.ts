@@ -16,29 +16,25 @@ export class WebSocketClient {
   connect(documentId: string, token: string): Promise<void> {
     return new Promise((resolve, reject) => {
       if (this.isConnecting) {
-        console.log('Already connecting...');
         return;
       }
 
       this.documentId = documentId;
       this.token = token;
       this.isConnecting = true;
-      
+
       const wsUrl = `${process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:8000'}/ws/${documentId}?token=${token}`;
-      
-      console.log('Connecting to WebSocket:', wsUrl);
-      
+
       try {
         this.ws = new WebSocket(wsUrl);
-        
+
         this.ws.onopen = () => {
-          console.log('WebSocket connected');
           this.reconnectAttempts = 0;
           this.isConnecting = false;
           this.startPing();
           resolve();
         };
-        
+
         this.ws.onmessage = (event) => {
           try {
             const message = JSON.parse(event.data);
@@ -47,15 +43,13 @@ export class WebSocketClient {
             console.error('Failed to parse WebSocket message:', error);
           }
         };
-        
+
         this.ws.onerror = (error) => {
-          console.error('WebSocket error:', error);
           this.isConnecting = false;
           reject(error);
         };
-        
-        this.ws.onclose = (event) => {
-          console.log('WebSocket closed:', event.code, event.reason);
+
+        this.ws.onclose = () => {
           this.isConnecting = false;
           this.stopPing();
           this.handleReconnect();
@@ -114,7 +108,7 @@ export class WebSocketClient {
     if (handlers) {
       handlers.forEach((handler) => handler(message));
     }
-    
+
     const genericHandlers = this.messageHandlers.get('*');
     if (genericHandlers) {
       genericHandlers.forEach((handler) => handler(message));
@@ -125,15 +119,12 @@ export class WebSocketClient {
     if (this.reconnectAttempts < this.maxReconnectAttempts) {
       this.reconnectAttempts++;
       const delay = this.reconnectDelay * Math.pow(2, this.reconnectAttempts - 1);
-      console.log(`Reconnecting in ${delay}ms... (attempt ${this.reconnectAttempts})`);
-      
+
       setTimeout(() => {
         if (this.documentId && this.token) {
           this.connect(this.documentId, this.token).catch(console.error);
         }
       }, delay);
-    } else {
-      console.error('Max reconnect attempts reached');
     }
   }
 

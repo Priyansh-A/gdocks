@@ -41,8 +41,8 @@ class ConnectionManager:
             "cursor": None
         }
         
-        # Send current state to new user
-        await self._send_document_state(websocket, document_id)
+        # Send presence state to the new user
+        await self._send_presence_state(websocket, document_id)
         
         # Broadcast user joined
         await self.broadcast_user_presence(document_id, user_id, "joined")
@@ -163,11 +163,10 @@ class ConnectionManager:
         }
         await self.broadcast(document_id, message, sender)
     
-    async def _send_document_state(self, websocket: WebSocket, document_id: str):
-        """Send current document state to a new user."""
-        # This will be implemented with Yjs
+    async def _send_presence_state(self, websocket: WebSocket, document_id: str):
+        """Send presence state to a new user."""
         message = {
-            "type": "document_state",
+            "type": "presence_state",
             "data": {
                 "document_id": document_id,
                 "active_users": list(self.document_users.get(document_id, set())),

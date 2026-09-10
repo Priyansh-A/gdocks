@@ -10,6 +10,7 @@ import { MediaUploader } from '@/src/components/Media/MediaUploader';
 import { CommentSection } from '@/src/components/Comments/CommentSection';
 import { VersionHistory } from '@/src/components/Document/VersionHistory';
 import { useAuthStore } from '@/src/store/authStore';
+import { useAuth } from '@/src/hooks/useAuth';
 import { useDocument } from '@/src/hooks/useDocument';
 import { wsClient } from '@/src/lib/websocket-client';
 import { 
@@ -22,14 +23,16 @@ import {
   MessageSquare,
   FileText,
   File,
-  Film
+  Film,
+  LogOut
 } from 'lucide-react';
 
 export default function DocumentPage() {
   const params = useParams();
   const router = useRouter();
   const documentId = params.id as string;
-  const { isAuthenticated } = useAuthStore();
+  const { isAuthenticated, isLoading } = useAuthStore();
+  const { logout } = useAuth();
   const { document: docData, loading, updateDocument, saveContent, content, setContent } = useDocument(documentId);
   const [showShareModal, setShowShareModal] = useState(false);
   const [showMediaUploader, setShowMediaUploader] = useState(false);
@@ -43,10 +46,10 @@ export default function DocumentPage() {
   }, []);
 
   useEffect(() => {
-    if (!isAuthenticated) {
+    if (!isLoading && !isAuthenticated) {
       router.push('/login');
     }
-  }, [isAuthenticated, router]);
+  }, [isAuthenticated, isLoading, router]);
 
   useEffect(() => {
     if (isAuthenticated && documentId) {
@@ -229,6 +232,18 @@ export default function DocumentPage() {
             >
               <Share2 className="w-4 h-4" />
               Share
+            </button>
+
+            <div className="w-px h-8 bg-gray-200" />
+
+            <button
+              onClick={() => logout()}
+              title="Sign out"
+              aria-label="Sign out"
+              className="flex items-center gap-2 px-3 py-2 text-sm text-gray-600 rounded-lg hover:bg-gray-100 hover:text-gray-900 transition-colors"
+            >
+              <LogOut className="w-4 h-4" />
+              Sign out
             </button>
           </div>
         </div>

@@ -44,7 +44,8 @@ class PermissionBase(BaseModel):
     role: str = Field(..., pattern="^(owner|editor|viewer|commenter)$")
 
 class PermissionCreate(PermissionBase):
-    user_id: uuid.UUID
+    user_id: Optional[uuid.UUID] = None
+    email: Optional[str] = None
 
 class PermissionResponse(BaseModel):
     id: uuid.UUID

@@ -3,7 +3,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import { toast } from 'react-hot-toast';
 import apiClient from '@/src/lib/api-client';
-import { Document} from '@/src/types';
+import { Document } from '@/src/types';
+import { getTemplateContent } from '@/src/utils/templates';
 
 interface UseDocumentListReturn {
   documents: Document[];
@@ -89,23 +90,6 @@ export function useDocumentList(): UseDocumentListReturn {
       throw err;
     }
   }, []);
-
-  const getTemplateContent = (type: string): string => {
-    switch (type) {
-      case 'letter':
-        return '<h1>Letter</h1><p><strong>Date:</strong> </p><p><strong>To:</strong> </p><p><strong>From:</strong> </p><p>Dear </p><p></p><p>I am writing to...</p>';
-      case 'report':
-        return '<h1>Report Title</h1><h2>Executive Summary</h2><p></p><h2>Introduction</h2><p></p><h2>Findings</h2><ul><li>Point 1</li><li>Point 2</li></ul><h2>Conclusion</h2><p></p>';
-      case 'blog':
-        return '<h1>Blog Post Title</h1><p><em>Published on </em></p><p></p><h2>Introduction</h2><p></p><h2>Main Content</h2><p></p><h2>Conclusion</h2><p></p>';
-      case 'resume':
-        return '<h1>John Doe</h1><p><strong>Email:</strong> john@example.com | <strong>Phone:</strong> (123) 456-7890</p><hr /><h2>Professional Summary</h2><p></p><h2>Work Experience</h2><h3>Job Title - Company Name</h3><p><em>Date - Present</em></p><ul><li>Responsibility 1</li></ul>';
-      case 'code':
-        return '<h1>Code Documentation</h1><h2>Overview</h2><p></p><h2>Code Example</h2><pre><code>function example() {\n  console.log("Hello World");\n}</code></pre>';
-      default:
-        return '<p>Start writing your document...</p>';
-    }
-  };
 
   // Delete a document
   const deleteDocument = useCallback(async (id: string) => {

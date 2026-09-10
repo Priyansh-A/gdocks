@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 from typing import List, Optional
 import uuid
 from app.database import get_db
@@ -30,12 +31,14 @@ async def create_document(
 @router.get("/", response_model=List[DocumentResponse])
 async def get_documents(
     include_archived: bool = Query(False),
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
-    """Get all documents for the current user."""
+    """Get all documents for the current user with pagination."""
     documents = await DocumentService.get_user_documents(
-        db, current_user.id, include_archived
+        db, current_user.id, include_archived, limit=limit, offset=offset
     )
     return documents
 
@@ -114,11 +117,48 @@ async def add_permission(
         raise PermissionDenied("Only the owner can add permissions")
     
     await DocumentService.get_document(db, document_id, current_user.id)
+
+    target_user_id = permission_data.user_id
+    if not target_user_id:
+        if not permission_data.email:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Either user_id or email is required"
+            )
+        result = await db.execute(
+            select(User).where(User.email == permission_data.email.lower())
+        )
+        target_user = result.scalar_one_or_none()
+        if not target_user:
+            raise NotFoundError("User not found with the provided email")
+        target_user_id = target_user.id
+    else:
+        result = await db.execute(select(User).where(User.id == target_user_id))
+        if not result.scalar_one_or_none():
+            raise NotFoundError("User not found")
+    
+    if target_user_id == current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="You already own this document"
+        )
     
     from app.models.document import Permission
+    existing = await db.execute(
+        select(Permission).where(
+            (Permission.document_id == document_id) &
+            (Permission.user_id == target_user_id)
+        )
+    )
+    if existing.scalar_one_or_none():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="This user already has access to the document"
+        )
+    
     permission = Permission(
         document_id=document_id,
-        user_id=permission_data.user_id,
+        user_id=target_user_id,
         role=permission_data.role
     )
     db.add(permission)
@@ -157,6 +197,93 @@ async def remove_permission(
         raise NotFoundError("Permission not found")
     
     return {"message": "Permission removed successfully"}
+
+@router.get("/{document_id}/permissions", response_model=List[PermissionResponse])
+async def get_document_permissions(
+    document_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Get all permissions for a document."""
+    await DocumentService.get_document(db, document_id, current_user.id)
+
+    from app.models.document import Permission
+    result = await db.execute(
+        select(Permission)
+        .where(Permission.document_id == document_id)
+        .order_by(Permission.created_at.asc())
+    )
+    return result.scalars().all()
+
+@router.put("/{document_id}/permissions/{user_id}", response_model=PermissionResponse)
+async def update_permission(
+    document_id: uuid.UUID,
+    user_id: uuid.UUID,
+    permission_data: PermissionCreate,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Update a user's permission role on a document."""
+    is_owner = await DocumentService.is_owner(db, document_id, current_user.id)
+    if not is_owner:
+        raise PermissionDenied("Only the owner can update permissions")
+
+    if user_id == current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cannot change your own owner role"
+        )
+
+    from app.models.document import Permission
+    result = await db.execute(
+        select(Permission).where(
+            (Permission.document_id == document_id) &
+            (Permission.user_id == user_id)
+        )
+    )
+    permission = result.scalar_one_or_none()
+    if not permission:
+        raise NotFoundError("Permission not found")
+
+    if permission.role == "owner":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cannot change the owner role"
+        )
+
+    permission.role = permission_data.role
+    await db.commit()
+    await db.refresh(permission)
+    return permission
+
+@router.get("/{document_id}/check-permission")
+async def check_user_permission(
+    document_id: uuid.UUID,
+    role: str = Query(..., pattern="^(viewer|commenter|editor|owner)$"),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Check if the current user has the required permission level."""
+    try:
+        has_permission = await DocumentService.check_permission(
+            db, document_id, current_user.id, role
+        )
+    except NotFoundError:
+        raise NotFoundError("Document not found")
+
+    user_role = None
+    from app.models.document import Permission
+    result = await db.execute(
+        select(Permission).where(
+            (Permission.document_id == document_id) &
+            (Permission.user_id == current_user.id)
+        )
+    )
+    permission = result.scalar_one_or_none()
+    if permission:
+        user_role = permission.role
+
+    return {"has_permission": has_permission, "role": user_role}
 
 @router.post("/{document_id}/archive")
 async def archive_document(
