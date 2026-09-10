@@ -2,118 +2,30 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Plus, FileText, Users, Clock, Archive } from 'lucide-react';
+import { Plus, FileText, Users, Clock, Archive, LogOut } from 'lucide-react';
 import { useAuth } from '@/src/hooks/useAuth';
 import { useDocumentList } from '@/src/hooks/useDocumentList';
 import { CreateDocumentModal } from '@/src/components/Document/CreateDocumentModal';
 
 export default function HomePage() {
   const router = useRouter();
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
   const { documents, loading, createDocument, deleteDocument, archiveDocument, restoreDocument } = useDocumentList();
   const [creating, setCreating] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
 
-  const handleCreateDocument = async (title: string, type: string) => {
-    setCreating(true);
-    try {
-      // Get template content based on type
-      const templateContent = getTemplateContent(type);
-      const doc = await createDocument(title, templateContent);
-      setShowCreateModal(false);
-      router.push(`/doc/${doc.id}`);
-    } catch (error) {
-      // Error handled by hook
-    } finally {
-      setCreating(false);
-    }
-  };
 
-  const getTemplateContent = (type: string): string => {
-    switch (type) {
-      case 'letter':
-        return `
-          <h1>Letter</h1>
-          <p><strong>Date:</strong> </p>
-          <p><strong>To:</strong> </p>
-          <p><strong>From:</strong> </p>
-          <p>Dear </p>
-          <p></p>
-          <p>I am writing to...</p>
-          <p></p>
-          <p>Sincerely,</p>
-          <p></p>
-        `;
-      case 'report':
-        return `
-          <h1>Report Title</h1>
-          <h2>Executive Summary</h2>
-          <p></p>
-          <h2>Introduction</h2>
-          <p></p>
-          <h2>Findings</h2>
-          <ul>
-            <li>Point 1</li>
-            <li>Point 2</li>
-            <li>Point 3</li>
-          </ul>
-          <h2>Conclusion</h2>
-          <p></p>
-        `;
-      case 'blog':
-        return `
-          <h1>Blog Post Title</h1>
-          <p><em>Published on </em></p>
-          <p></p>
-          <h2>Introduction</h2>
-          <p></p>
-          <h2>Main Content</h2>
-          <p></p>
-          <h2>Conclusion</h2>
-          <p></p>
-        `;
-      case 'resume':
-        return `
-          <h1>John Doe</h1>
-          <p><strong>Email:</strong> john@example.com | <strong>Phone:</strong> (123) 456-7890</p>
-          <hr />
-          <h2>Professional Summary</h2>
-          <p></p>
-          <h2>Work Experience</h2>
-          <h3>Job Title - Company Name</h3>
-          <p><em>Date - Present</em></p>
-          <ul>
-            <li>Responsibility 1</li>
-            <li>Responsibility 2</li>
-          </ul>
-          <h2>Education</h2>
-          <h3>Degree - University</h3>
-          <p><em>Date</em></p>
-          <h2>Skills</h2>
-          <ul>
-            <li>Skill 1</li>
-            <li>Skill 2</li>
-          </ul>
-        `;
-      case 'code':
-        return `
-          <h1>Code Documentation</h1>
-          <h2>Overview</h2>
-          <p></p>
-          <h2>Code Example</h2>
-          <pre><code>
-            // Your code here
-            function example() {
-              console.log('Hello World');
-            }
-          </code></pre>
-          <h2>Explanation</h2>
-          <p></p>
-        `;
-      default:
-        return '<p>Start writing your document...</p>';
-    }
-  };
+const handleCreateDocument = async (title: string, type: string, file?: File) => {
+  setCreating(true);
+  try {
+    const doc = await createDocument(title, type, file);
+    setShowCreateModal(false);
+    router.push(`/doc/${doc.id}`);
+  } catch (error) {
+  } finally {
+    setCreating(false);
+  }
+};
 
   if (loading) {
     return (
@@ -136,13 +48,24 @@ export default function HomePage() {
           </h1>
           <p className="text-gray-600 mt-1">Here are your documents</p>
         </div>
-        <button
-          onClick={() => setShowCreateModal(true)}
-          className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-        >
-          <Plus className="w-5 h-5" />
-          New Document
-        </button>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => setShowCreateModal(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+          >
+            <Plus className="w-5 h-5" />
+            New Document
+          </button>
+          <button
+            onClick={() => logout()}
+            title="Sign out"
+            aria-label="Sign out"
+            className="flex items-center gap-2 px-4 py-2 text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 hover:text-gray-900 transition-colors"
+          >
+            <LogOut className="w-4 h-4" />
+            Sign out
+          </button>
+        </div>
       </div>
 
       {/* Stats */}

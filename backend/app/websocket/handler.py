@@ -3,13 +3,17 @@ from typing import Dict, Any
 import json
 import asyncio
 import uuid
+import logging
 from datetime import datetime
 from app.websocket.connection_manager import connection_manager
 from app.services.yjs_service import yjs_service
 from app.services.document_service import DocumentService
 from app.database import AsyncSessionLocal
 from app.core.security import decode_token
+from app.core.session_store import check_version
 from app.redis_client import redis_client
+
+logger = logging.getLogger(__name__)
 
 class WebSocketHandler:
     @staticmethod
@@ -21,6 +25,9 @@ class WebSocketHandler:
             user_id = payload.get("sub")
             if not user_id:
                 await websocket.close(code=4001, reason="Invalid token")
+                return
+            if payload.get("type") != "access" or not await check_version(str(user_id), payload.get("ver")):
+                await websocket.close(code=4001, reason="Session revoked")
                 return
         except:
             await websocket.close(code=4001, reason="Invalid token")
@@ -99,7 +106,7 @@ class WebSocketHandler:
             }))
             
         except Exception as e:
-            print(f"Error loading document: {e}")
+            logger.error("Error loading document: %s", e)
             await websocket.send_text(json.dumps({
                 "type": "error",
                 "data": {"message": "Failed to load document"}
@@ -116,7 +123,7 @@ class WebSocketHandler:
                 except json.JSONDecodeError:
                     pass
                 except Exception as e:
-                    print(f"Error handling message: {e}")
+                    logger.error("Error handling message: %s", e)
                     await websocket.send_text(json.dumps({
                         "type": "error",
                         "data": {"message": str(e)}
@@ -125,7 +132,7 @@ class WebSocketHandler:
         except WebSocketDisconnect:
             # Handle disconnect
             await connection_manager.disconnect(websocket, document_id, str(user_id))
-            print(f"User {user_id} disconnected from document {document_id}")
+            logger.info("User %s disconnected from document %s", user_id, document_id)
     
     @staticmethod
     async def _handle_message(websocket: WebSocket, document_id: str, user_id: str, data: Dict):
@@ -159,7 +166,7 @@ class WebSocketHandler:
                     )
                     
                 except Exception as e:
-                    print(f"Error applying update: {e}")
+                    logger.error("Error applying update: %s", e)
                     await websocket.send_text(json.dumps({
                         "type": "error",
                         "data": {"message": f"Update failed: {str(e)}"}
@@ -231,7 +238,7 @@ class WebSocketHandler:
             # Keep only last 100 messages
             await redis_client.ltrim(key, 0, 99)
         except Exception as e:
-            print(f"Error saving chat to Redis: {e}")
+            logger.error("Error saving chat to Redis: %s", e)
     
     @staticmethod
     async def _get_chat_history(document_id: str) -> list:
@@ -241,7 +248,7 @@ class WebSocketHandler:
             messages = await redis_client.lrange(key, 0, 99)
             return [json.loads(msg) for msg in messages]
         except Exception as e:
-            print(f"Error getting chat history: {e}")
+            logger.error("Error getting chat history: %s", e)
             return []
     
     @staticmethod
@@ -258,4 +265,4 @@ class WebSocketHandler:
                 db.add(message)
                 await db.commit()
         except Exception as e:
-            print(f"Error saving chat to DB: {e}")
+            logger.error("Error saving chat to DB: %s", e)

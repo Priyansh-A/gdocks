@@ -1,15 +1,14 @@
 import cloudinary
 import cloudinary.uploader
 import cloudinary.api
-from typing import Optional, Dict, Any, BinaryIO
+from typing import Optional, Dict, Any
 from fastapi import UploadFile
 from app.config import settings
 import uuid
-import os
+import asyncio
 
 class CloudinaryService:
     def __init__(self):
-        # Configure Cloudinary
         cloudinary.config(
             cloud_name=settings.CLOUDINARY_CLOUD_NAME,
             api_key=settings.CLOUDINARY_API_KEY,
@@ -26,21 +25,17 @@ class CloudinaryService:
     ) -> Dict[str, Any]:
         """Upload a file to Cloudinary."""
         try:
-            # Read file content
             file_content = await file.read()
             
-            # Generate public_id if not provided
             if not public_id:
                 public_id = f"{uuid.uuid4().hex}_{file.filename}"
             
-            # Determine resource type
             resource_type = "auto"
             if file.content_type and file.content_type.startswith("video/"):
                 resource_type = "video"
             elif file.content_type and file.content_type.startswith("image/"):
                 resource_type = "image"
             
-            # Upload options
             upload_options = {
                 "public_id": public_id,
                 "resource_type": resource_type,
@@ -49,12 +44,11 @@ class CloudinaryService:
                 "unique_filename": False,
             }
             
-            # Add transformation for images
             if resource_type == "image" and transformation:
                 upload_options["transformation"] = transformation
             
-            # Upload to Cloudinary
-            result = cloudinary.uploader.upload(
+            result = await asyncio.to_thread(
+                cloudinary.uploader.upload,
                 file_content,
                 **upload_options
             )
@@ -103,7 +97,8 @@ class CloudinaryService:
     async def delete_file(self, public_id: str, resource_type: str = "image") -> bool:
         """Delete a file from Cloudinary."""
         try:
-            result = cloudinary.uploader.destroy(
+            result = await asyncio.to_thread(
+                cloudinary.uploader.destroy,
                 public_id,
                 resource_type=resource_type
             )
@@ -114,7 +109,7 @@ class CloudinaryService:
     async def get_file_info(self, public_id: str) -> Optional[Dict[str, Any]]:
         """Get information about a file."""
         try:
-            result = cloudinary.api.resource(public_id)
+            result = await asyncio.to_thread(cloudinary.api.resource, public_id)
             return result
         except Exception:
             return None

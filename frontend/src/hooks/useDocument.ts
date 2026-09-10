@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'react-hot-toast';
 import apiClient from '@/src/lib/api-client';
-import { Document, DocumentWithPermissions, Permission } from '@/src/types';
+import { Document, DocumentWithPermissions, Permission, DocumentType } from '@/src/types';
 
 interface UseDocumentReturn {
   document: DocumentWithPermissions | null;
@@ -57,7 +57,12 @@ export function useDocument(documentId: string): UseDocumentReturn {
     
     try {
       const response = await apiClient.put(`/documents/${document.id}`, data);
-      setDocument(response.data);
+      setDocument({
+        ...response.data,
+        permissions: document.permissions || [],
+        is_owner: document.is_owner || false,
+        user_role: document.user_role,
+      });
       toast.success('Document updated');
     } catch (err: any) {
       const errorMsg = err.response?.data?.detail || 'Failed to update document';
@@ -74,7 +79,12 @@ export function useDocument(documentId: string): UseDocumentReturn {
       const response = await apiClient.put(`/documents/${document.id}`, {
         content: content,
       });
-      setDocument(response.data);
+      setDocument({
+        ...response.data,
+        permissions: document.permissions || [],
+        is_owner: document.is_owner || false,
+        user_role: document.user_role,
+      });
       toast.success('Document saved');
     } catch (err: any) {
       const errorMsg = err.response?.data?.detail || 'Failed to save document';
@@ -141,10 +151,13 @@ export function useDocument(documentId: string): UseDocumentReturn {
         user_id: userId,
         role,
       });
-      setDocument(prev => ({
-        ...prev!,
-        permissions: [...(prev?.permissions || []), response.data],
-      }));
+      setDocument(prev => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          permissions: [...(prev.permissions || []), response.data],
+        };
+      });
       toast.success('Permission added');
     } catch (err: any) {
       const errorMsg = err.response?.data?.detail || 'Failed to add permission';
@@ -159,10 +172,13 @@ export function useDocument(documentId: string): UseDocumentReturn {
     
     try {
       await apiClient.delete(`/documents/${document.id}/permissions/${userId}`);
-      setDocument(prev => ({
-        ...prev!,
-        permissions: prev?.permissions?.filter(p => p.user_id !== userId) || [],
-      }));
+      setDocument(prev => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          permissions: prev.permissions?.filter(p => p.user_id !== userId) || [],
+        };
+      });
       toast.success('Permission removed');
     } catch (err: any) {
       const errorMsg = err.response?.data?.detail || 'Failed to remove permission';

@@ -1,7 +1,7 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, and_, or_, func
 from sqlalchemy.orm import selectinload
-from app.models.document import Document, Permission, DocumentVersion
+from app.models.document import Document, Permission, DocumentVersion, DocumentType
 from app.models.user import User
 from app.schemas.document import DocumentCreate, DocumentUpdate
 from app.core.exceptions import NotFoundError, PermissionDenied
@@ -17,9 +17,20 @@ class DocumentService:
         document_data: DocumentCreate
     ) -> Document:
         """Create a new document."""
+        # Set default content based on document type
+        if document_data.document_type == DocumentType.PDF:
+            default_content = None
+        elif document_data.document_type == DocumentType.MEDIA:
+            default_content = None
+        else:
+            default_content = json.dumps({"ops": []})  # Empty document state
+        
         document = Document(
             title=document_data.title,
-            content=json.dumps({"ops": []}),  # Empty document state
+            content=document_data.content or default_content,
+            document_type=document_data.document_type or DocumentType.DOCUMENT,
+            file_url=document_data.file_url,
+            file_metadata=document_data.file_metadata,
             owner_id=user_id,
             version=0
         )
@@ -74,10 +85,11 @@ class DocumentService:
     async def get_user_documents(
         db: AsyncSession,
         user_id: uuid.UUID,
-        include_archived: bool = False
+        include_archived: bool = False,
+        limit: int = 50,
+        offset: int = 0,
     ) -> List[Document]:
-        """Get all documents for a user (owned or shared)."""
-        # Get documents where user is owner or has permission
+        """Get documents for a user (owned or shared) with pagination."""
         query = select(Document).where(
             and_(
                 Document.is_deleted == False,
@@ -96,7 +108,7 @@ class DocumentService:
         if not include_archived:
             query = query.where(Document.is_archived == False)
         
-        query = query.order_by(Document.last_edited_at.desc())
+        query = query.order_by(Document.last_edited_at.desc()).limit(limit).offset(offset)
         
         result = await db.execute(query)
         return result.scalars().all()
@@ -122,15 +134,25 @@ class DocumentService:
             document.title = update_data.title
         
         if update_data.content is not None:
-            # Save version before updating content
-            await DocumentService.save_version(
-                db,
-                document.id,
-                document.content,
-                user_id
-            )
+            # Save version before updating content (only for documents)
+            if document.document_type == DocumentType.DOCUMENT:
+                await DocumentService.save_version(
+                    db,
+                    document.id,
+                    document.content,
+                    user_id
+                )
             document.content = update_data.content
             document.version += 1
+        
+        if update_data.file_url is not None:
+            document.file_url = update_data.file_url
+        
+        if update_data.file_metadata is not None:
+            document.file_metadata = update_data.file_metadata
+        
+        if update_data.is_archived is not None:
+            document.is_archived = update_data.is_archived
         
         await db.commit()
         await db.refresh(document)
@@ -152,6 +174,32 @@ class DocumentService:
         document.is_deleted = True
         await db.commit()
         return True
+    
+    @staticmethod
+    async def archive_document(
+        db: AsyncSession,
+        document_id: uuid.UUID,
+        user_id: uuid.UUID
+    ) -> Document:
+        """Archive a document."""
+        document = await DocumentService.get_document(db, document_id, user_id)
+        document.is_archived = True
+        await db.commit()
+        await db.refresh(document)
+        return document
+    
+    @staticmethod
+    async def restore_document(
+        db: AsyncSession,
+        document_id: uuid.UUID,
+        user_id: uuid.UUID
+    ) -> Document:
+        """Restore a document from archive."""
+        document = await DocumentService.get_document(db, document_id, user_id)
+        document.is_archived = False
+        await db.commit()
+        await db.refresh(document)
+        return document
     
     @staticmethod
     async def check_permission(
@@ -213,7 +261,7 @@ class DocumentService:
         version = DocumentVersion(
             document_id=document_id,
             version=await DocumentService.get_next_version(db, document_id),
-            snapshot=snapshot,
+            snapshot=snapshot or "{}",
             user_id=user_id
         )
         db.add(version)
@@ -231,3 +279,70 @@ class DocumentService:
         )
         count = result.scalar() or 0
         return count + 1
+    
+    @staticmethod
+    async def get_document_versions(
+        db: AsyncSession,
+        document_id: uuid.UUID,
+        user_id: uuid.UUID,
+        limit: int = 50,
+        offset: int = 0
+    ) -> List[DocumentVersion]:
+        """Get version history of a document."""
+        # Check permission
+        has_permission = await DocumentService.check_permission(
+            db, document_id, user_id, "viewer"
+        )
+        if not has_permission:
+            raise PermissionDenied("You don't have permission to view this document's history")
+        
+        result = await db.execute(
+            select(DocumentVersion)
+            .where(DocumentVersion.document_id == document_id)
+            .order_by(DocumentVersion.version.desc())
+            .offset(offset)
+            .limit(limit)
+        )
+        return result.scalars().all()
+    
+    @staticmethod
+    async def restore_version(
+        db: AsyncSession,
+        document_id: uuid.UUID,
+        version_id: uuid.UUID,
+        user_id: uuid.UUID
+    ) -> Document:
+        """Restore a document to a specific version."""
+        # Check permission
+        has_permission = await DocumentService.check_permission(
+            db, document_id, user_id, "editor"
+        )
+        if not has_permission:
+            raise PermissionDenied("You don't have permission to restore this document")
+        
+        # Get the version
+        result = await db.execute(
+            select(DocumentVersion).where(DocumentVersion.id == version_id)
+        )
+        version = result.scalar_one_or_none()
+        if not version:
+            raise NotFoundError("Version not found")
+        
+        # Get the document
+        document = await DocumentService.get_document(db, document_id, user_id)
+        
+        # Save current state as a new version
+        await DocumentService.save_version(
+            db,
+            document.id,
+            document.content,
+            user_id
+        )
+        
+        # Restore the version
+        document.content = version.snapshot
+        document.version += 1
+        
+        await db.commit()
+        await db.refresh(document)
+        return document

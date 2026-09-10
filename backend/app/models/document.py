@@ -1,16 +1,23 @@
-from sqlalchemy import Column, String, Text, Boolean, DateTime, Integer, JSON, ForeignKey
+from sqlalchemy import Column, String, Text, Boolean, DateTime, Integer, JSON, ForeignKey, Enum
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
 from app.database import Base
 import uuid
-
+import enum
+class DocumentType(str, enum.Enum):
+    DOCUMENT = "document"
+    PDF = "pdf"
+    MEDIA = "media"
 class Document(Base):
     __tablename__ = "documents"
     
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     title = Column(String(255), nullable=False, default="Untitled Document")
-    content = Column(Text, nullable=True)  # JSON/Base64 snapshot
+    content = Column(Text, nullable=True)
+    document_type = Column(Enum(DocumentType), default=DocumentType.DOCUMENT, nullable=False)
+    file_url = Column(String(500), nullable=True)  # For PDFs and media
+    file_metadata = Column(JSON, nullable=True) 
     version = Column(Integer, default=0)
     owner_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     is_archived = Column(Boolean, default=False)

@@ -6,6 +6,7 @@ from app.database import get_db
 from app.models.user import User
 from app.schemas.user import UserResponse, UserUpdate
 from app.core.security import decode_token, get_password_hash
+from app.core.session_store import check_version
 from app.core.exceptions import AuthenticationError, NotFoundError
 
 router = APIRouter(tags=["Users"])
@@ -29,11 +30,14 @@ async def get_current_user(
         payload = decode_token(token)
         if payload.get("type") != "access":
             raise AuthenticationError("Invalid token type")
-        
+
         user_id = payload.get("sub")
         if not user_id:
             raise AuthenticationError("Invalid token")
-        
+
+        if not await check_version(str(user_id), payload.get("ver")):
+            raise AuthenticationError("Session has been revoked, please log in again")
+
         result = await db.execute(
             select(User).where(User.id == user_id)
         )

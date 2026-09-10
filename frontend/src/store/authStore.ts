@@ -9,7 +9,6 @@ interface AuthState {
   isLoading: boolean;
   setAuth: (user: User, token: string) => void;
   logout: () => void;
-  setLoading: (loading: boolean) => void;
 }
 
 export const useAuthStore = create<AuthState>()(
@@ -18,21 +17,34 @@ export const useAuthStore = create<AuthState>()(
       user: null,
       token: null,
       isAuthenticated: false,
-      isLoading: false,
+      isLoading: true,
       setAuth: (user, token) => {
-        set({ user, token, isAuthenticated: true });
-        // Store token in localStorage for API calls
+        set({ user, token, isAuthenticated: true, isLoading: false });
         localStorage.setItem('token', token);
       },
       logout: () => {
-        set({ user: null, token: null, isAuthenticated: false });
+        set({
+          user: null,
+          token: null,
+          isAuthenticated: false,
+          isLoading: false,
+        });
         localStorage.removeItem('token');
-        localStorage.removeItem('auth-storage');
+        localStorage.removeItem('refresh_token');
       },
-      setLoading: (loading) => set({ isLoading: loading }),
     }),
     {
       name: 'auth-storage',
+      partialize: (state) => ({
+        user: state.user,
+        token: state.token,
+        isAuthenticated: state.isAuthenticated,
+      }),
+      onRehydrateStorage: () => {
+        return () => {
+          useAuthStore.setState({ isLoading: false });
+        };
+      },
     }
   )
 );

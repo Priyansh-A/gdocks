@@ -4,13 +4,14 @@ import { useState, useEffect, useCallback } from 'react';
 import { toast } from 'react-hot-toast';
 import apiClient from '@/src/lib/api-client';
 import { Document } from '@/src/types';
+import { getTemplateContent } from '@/src/utils/templates';
 
 interface UseDocumentListReturn {
   documents: Document[];
   loading: boolean;
   error: string | null;
   fetchDocuments: () => Promise<void>;
-  createDocument: (title?: string, content?: string) => Promise<Document>;
+  createDocument: (title: string, type: string, file?: File) => Promise<Document>;
   deleteDocument: (id: string) => Promise<void>;
   archiveDocument: (id: string) => Promise<void>;
   restoreDocument: (id: string) => Promise<void>;
@@ -37,21 +38,48 @@ export function useDocumentList(): UseDocumentListReturn {
     }
   }, []);
 
-  // Create a new document with optional content
-  const createDocument = useCallback(async (title: string = 'Untitled Document', content?: string) => {
+  // Create a new document
+  const createDocument = useCallback(async (title: string, type: string, file?: File) => {
     try {
       let response;
-      try {
-        response = await apiClient.post('/documents/', { 
-          title, 
-          content: content || '<p>Start writing your document...</p>'
+      
+      if (file) {
+        // For PDF and Media, upload file first
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('title', title);
+        formData.append('document_type', type === 'pdf' ? 'pdf' : 'media');
+        
+        // Upload file to media endpoint first
+        const uploadResponse = await apiClient.post('/media/upload', formData, {
+          headers: { 'Content-Type': 'multipart/form-data' },
+          params: { document_id: 'temp' } // Will be replaced
         });
-      } catch {
-        response = await apiClient.post('/documents', { 
-          title,
-          content: content || '<p>Start writing your document...</p>'
+        
+        // Then create document with file info
+        const docData = {
+          title: title,
+          document_type: type === 'pdf' ? 'pdf' : 'media',
+          file_url: uploadResponse.data.storage_url,
+          file_metadata: {
+            originalName: file.name,
+            fileSize: file.size,
+            mimeType: file.type,
+            publicId: uploadResponse.data.public_id,
+          }
+        };
+        
+        response = await apiClient.post('/documents/', docData);
+      } else {
+        // Regular document
+        const templateContent = getTemplateContent(type);
+        response = await apiClient.post('/documents/', {
+          title: title,
+          document_type: 'document',
+          content: templateContent,
         });
       }
+      
       const newDoc = response.data;
       setDocuments(prev => [newDoc, ...prev]);
       toast.success('Document created');
@@ -79,7 +107,7 @@ export function useDocumentList(): UseDocumentListReturn {
   // Archive a document
   const archiveDocument = useCallback(async (id: string) => {
     try {
-      await apiClient.put(`/documents/${id}`, { is_archived: true });
+      await apiClient.post(`/documents/${id}/archive`);
       setDocuments(prev =>
         prev.map(doc =>
           doc.id === id ? { ...doc, is_archived: true } : doc
@@ -96,7 +124,7 @@ export function useDocumentList(): UseDocumentListReturn {
   // Restore a document from archive
   const restoreDocument = useCallback(async (id: string) => {
     try {
-      await apiClient.put(`/documents/${id}`, { is_archived: false });
+      await apiClient.post(`/documents/${id}/restore`);
       setDocuments(prev =>
         prev.map(doc =>
           doc.id === id ? { ...doc, is_archived: false } : doc

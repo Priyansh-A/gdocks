@@ -1,37 +1,71 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Placeholder from '@tiptap/extension-placeholder';
 import Image from '@tiptap/extension-image';
-// Remove Link import - it's already in StarterKit
-// import Link from '@tiptap/extension-link';
+import Link from '@tiptap/extension-link';
+import Collaboration from '@tiptap/extension-collaboration';
 import * as Y from 'yjs';
 import { WebsocketProvider } from 'y-websocket';
 import { EditorToolbar } from './EditorToolbar';
+import { PDFViewer } from './PDFViewer';
+import { MediaViewer } from './MediaViewer';
 import { useAuthStore } from '@/src/store/authStore';
 import './EditorStyles.css';
 
+export type DocumentType = 'document' | 'pdf' | 'media';
+
 interface TiptapEditorProps {
   documentId: string;
+  documentType?: DocumentType;
   initialContent?: string;
+  fileUrl?: string | null;
+  fileMetadata?: Record<string, any> | null;
   readOnly?: boolean;
 }
 
-export function TiptapEditor({ 
-  documentId, 
-  initialContent = '', 
-  readOnly = false 
+export function TiptapEditor(props: TiptapEditorProps) {
+  const { documentType = 'document', fileUrl } = props;
+
+  if (documentType === 'pdf' && fileUrl) {
+    return (
+      <PDFViewer
+        url={fileUrl}
+        title={props.fileMetadata?.originalName || 'PDF Document'}
+        readOnly={props.readOnly}
+      />
+    );
+  }
+
+  if (documentType === 'media' && fileUrl) {
+    return (
+      <MediaViewer
+        url={fileUrl}
+        title={props.fileMetadata?.originalName || 'Media'}
+        mimeType={props.fileMetadata?.mimeType || 'application/octet-stream'}
+        readOnly={props.readOnly}
+      />
+    );
+  }
+
+  return <RichTextEditor {...props} />;
+}
+
+function RichTextEditor({
+  documentId,
+  initialContent = '',
+  readOnly = false,
 }: TiptapEditorProps) {
   const [isConnected, setIsConnected] = useState(false);
   const [activeUsers, setActiveUsers] = useState<any[]>([]);
   const { token } = useAuthStore();
-  
-  const ydocRef = useRef<Y.Doc | null>(null);
-  const providerRef = useRef<WebsocketProvider | null>(null);
 
-  // Initialize editor - removed duplicate Link extension
+  const hasSeededRef = useRef(false);
+
+  const ydoc = useMemo(() => new Y.Doc(), []);
+
   const editor = useEditor({
     extensions: [
       StarterKit.configure({
@@ -50,128 +84,92 @@ export function TiptapEditor({
           class: 'max-w-full h-auto rounded-lg',
         },
       }),
-      // Link extension removed - already in StarterKit
+      Collaboration.configure({
+        document: ydoc,
+        field: 'content',
+      }),
     ],
-    content: initialContent || '<p>Welcome to your document!</p>',
     editable: !readOnly,
     editorProps: {
       attributes: {
         class: 'prose prose-lg max-w-none focus:outline-none min-h-[500px] p-4',
       },
     },
-    // Add immediatelyRender: true for Next.js hydration
-    immediatelyRender: true,
+    immediatelyRender: false,
   });
 
-  // Initialize Yjs
   useEffect(() => {
     if (!editor || !token || !documentId) return;
 
-    const ydoc = new Y.Doc();
-    ydocRef.current = ydoc;
+    const wsBaseUrl = `${process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:8000'}/yws`;
 
-    const wsUrl = `${process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:8000'}/ws/${documentId}?token=${token}`;
-    
+    let provider: WebsocketProvider | null = null;
     try {
-      const provider = new WebsocketProvider(
-        wsUrl,
-        'content',
-        ydoc,
-        { 
-          WebSocketPolyfill: WebSocket,
-          params: { token }
-        }
-      );
-      providerRef.current = provider;
-
-      const yText = ydoc.getText('content');
-      
-      if (initialContent) {
-        yText.insert(0, initialContent);
-      }
-
-      const updateEditor = () => {
-        if (editor && yText.toString() !== editor.getHTML()) {
-          try {
-            editor.commands.setContent(yText.toString());
-          } catch (e) {
-            console.error('Error updating editor from Yjs:', e);
-          }
-        }
-      };
-
-      yText.observe(updateEditor);
-
-      const handleUpdate = ({ editor: ed }: any) => {
-        if (!ed) return;
-        try {
-          const html = ed.getHTML();
-          if (html !== yText.toString()) {
-            const currentLength = yText.length;
-            if (currentLength > 0) {
-              yText.delete(0, currentLength);
-            }
-            yText.insert(0, html);
-          }
-        } catch (e) {
-          console.error('Error updating Yjs from editor:', e);
-        }
-      };
-
-      editor.on('update', handleUpdate);
-
-      provider.on('sync', (isSynced: boolean) => {
-        setIsConnected(isSynced);
+      provider = new WebsocketProvider(wsBaseUrl, documentId, ydoc, {
+        WebSocketPolyfill: WebSocket,
+        params: { token },
       });
-
-      // Handle WebSocket errors
-      provider.on('status', ({ status }: any) => {
-        console.log('WebSocket connection status:', status);
-        setIsConnected(status === 'connected');
-      });
-
-      const awareness = provider.awareness;
-      awareness.on('change', () => {
-        try {
-          const states = Array.from(awareness.getStates().entries());
-          const users = states.map(([clientId, state]) => ({
-            clientId,
-            ...state.user,
-          }));
-          setActiveUsers(users);
-        } catch (e) {
-          console.error('Error updating active users:', e);
-        }
-      });
-
-      const user = useAuthStore.getState().user;
-      awareness.setLocalState({
-        user: {
-          id: user?.id,
-          name: user?.full_name || user?.username || 'Anonymous',
-          color: `#${Math.floor(Math.random()*16777215).toString(16).padStart(6, '0')}`,
-        },
-      });
-
-      return () => {
-        try {
-          yText.unobserve(updateEditor);
-          editor.off('update', handleUpdate);
-          provider.destroy();
-          ydoc.destroy();
-        } catch (e) {
-          console.error('Error cleaning up Yjs:', e);
-        }
-      };
     } catch (error) {
       console.error('Error setting up Yjs provider:', error);
       setIsConnected(false);
     }
-  }, [documentId, editor, token, initialContent]);
+
+    if (!provider) return;
+
+    provider.on('sync', (isSynced: boolean) => {
+      setIsConnected(isSynced);
+
+      if (isSynced && !hasSeededRef.current) {
+        hasSeededRef.current = true;
+        const fragment = ydoc.getXmlFragment('content');
+        const isSharedEmpty = fragment.length === 0;
+        if (isSharedEmpty && isSeeddableHtml(initialContent)) {
+          editor.commands.setContent(initialContent);
+        }
+      }
+    });
+
+    provider.on('status', ({ status }: any) => {
+      setIsConnected(status === 'connected');
+    });
+
+    const awareness = provider.awareness;
+    const syncAwareness = () => {
+      try {
+        const states = Array.from(awareness.getStates().entries());
+        const users = states
+          .map(([clientId, state]) => ({ clientId, ...state.user }))
+          .filter((u) => u && (u.id || u.name));
+        setActiveUsers(users);
+      } catch (error) {
+        console.error('Error updating active users:', error);
+      }
+    };
+
+    awareness.on('change', syncAwareness);
+    syncAwareness();
+
+    const user = useAuthStore.getState().user;
+    awareness.setLocalStateField('user', {
+      id: user?.id,
+      name: user?.full_name || user?.username || 'Anonymous',
+      color: `#${Math.floor(Math.random() * 16777215).toString(16).padStart(6, '0')}`,
+    });
+
+    return () => {
+      try {
+        awareness.off('change', syncAwareness);
+        provider?.destroy();
+        ydoc.destroy();
+      } catch (error) {
+        console.error('Error cleaning up Yjs:', error);
+      }
+    };
+  }, [documentId, editor, token, ydoc, initialContent]);
 
   if (!editor) {
     return (
-      <div className="flex justify-center items-center p-8 min-h-125">
+      <div className="flex justify-center items-center p-8 min-h-[500px]">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500" />
       </div>
     );
@@ -188,7 +186,7 @@ export function TiptapEditor({
           </div>
         </div>
       </div>
-      
+
       <div className="flex-1 overflow-auto p-4">
         <EditorContent editor={editor} />
       </div>
@@ -196,9 +194,17 @@ export function TiptapEditor({
   );
 }
 
+function isSeeddableHtml(value: string): boolean {
+  if (!value || !value.trim()) return false;
+  const trimmed = value.trim();
+  // Persisted Yjs snapshots are JSON like {"snapshot":"...","version":N}
+  if (trimmed.startsWith('{') || trimmed.startsWith('[')) return false;
+  return /^<[a-z!]/.test(trimmed);
+}
+
 function ActiveUsersIndicator({ users }: { users: any[] }) {
   if (users.length === 0) return null;
-  
+
   return (
     <div className="flex items-center -space-x-2">
       {users.slice(0, 5).map((user) => (
